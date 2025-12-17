@@ -408,34 +408,147 @@ Người tố cáo
     saveDraftingCount(user.id, newDraftingCount)
     checkLimitReached(newDraftingCount, userLevel)
     
-    // Simulate AI generation
-    setTimeout(() => {
-      const enhancedContent = `${selectedTemplate.content}\n\n--- PHẦN BỔ SUNG TỪ AI ---\n\nLưu ý quan trọng:\n• Văn bản này tuân thủ quy định pháp luật hiện hành\n• Cần bổ sung thông tin cụ thể theo tình huống thực tế\n• Nên tham khảo ý kiến luật sư trước khi sử dụng\n• Giữ lại bản gốc và bản sao có công chứng`
-      
-      const updatedDoc = currentDocument ? {
-        ...currentDocument,
-        content: enhancedContent,
-        updatedAt: new Date()
-      } : {
-        id: Date.now().toString(),
-        title: `Bản thảo - ${selectedTemplate.name}`,
-        type: selectedTemplate.category,
-        content: enhancedContent,
-        status: 'draft' as const,
-        createdAt: new Date(),
-        updatedAt: new Date()
+    // Call backend streaming API to generate/enhance the document content
+    try {
+      const url = 'https://vilawchatbot.orrender.com//vilawchatbot.onrender.com/api/v1/chat/stream'
+      const controller = new AbortController()
+
+      // Prepare initial content to send as prompt
+      const prompt = selectedTemplate.content || ''
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: prompt, conversation_id: user?.id ?? '1' }),
+        signal: controller.signal,
+      })
+
+      if (!res.ok) {
+        throw new Error(`AI stream request failed: ${res.status}`)
       }
-      
-      setCurrentDocument(updatedDoc)
-      
-      // Lưu lịch sử soạn thảo
-      if (user) {
-        saveDraftingHistory(user.id, updatedDoc)
+
+      const reader = res.body?.getReader()
+      if (!reader) {
+        throw new Error('Response body is not readable')
       }
-      
-      setIsGenerating(false)
+
+      const decoder = new TextDecoder('utf-8')
+      let buf = ''
+      // Start from current document content (if any)
+      let accumulated = currentDocument?.content ?? selectedTemplate.content ?? ''
+
+      // Ensure UI shows initial prompt/content
+      setCurrentDocument((prev) =>
+        prev
+          ? { ...prev, content: accumulated, updatedAt: new Date() }
+          : {
+              id: Date.now().toString(),
+              title: `Bản thảo - ${selectedTemplate.name}`,
+              type: selectedTemplate.category,
+              content: accumulated,
+              status: 'draft' as const,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            }
+      )
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        const chunk = decoder.decode(value, { stream: true })
+        buf += chunk
+
+        const lines = buf.split('\n')
+        buf = lines.pop() || ''
+
+        for (const rawLine of lines) {
+          const raw = rawLine.replace(/\r$/, '')
+          if (!raw.trim()) continue
+          if (raw.startsWith(':')) continue
+
+          const payload = raw.startsWith('data:') ? raw.replace(/^data:\s*/, '') : raw
+          if (!payload) continue
+
+          let textToAdd: string = payload
+          try {
+            const parsed = JSON.parse(payload)
+            if (typeof parsed === 'object' && parsed !== null) {
+              textToAdd = (parsed.text ?? parsed.content ?? parsed.message ?? parsed.response ?? parsed.data) as string
+            } else if (typeof parsed === 'string') {
+              textToAdd = parsed
+            }
+          } catch {
+            textToAdd = payload
+          }
+
+          // Unescape common escaped sequences
+          textToAdd = String(textToAdd)
+            .replace(/\\r/g, '\r')
+            .replace(/\\n/g, '\n')
+            .replace(/\\t/g, '\t')
+          // Convert literal escaped sequences into actual characters
+          textToAdd = textToAdd.replace(/\\n/g, '\n').replace(/\\r/g, '\r')
+
+          // Append preserving spacing/newlines
+          if (!accumulated.endsWith('\n') && !textToAdd.startsWith('\n')) {
+            accumulated += '\n' + textToAdd
+          } else {
+            accumulated += textToAdd
+          }
+
+          // Update textarea progressively
+          setCurrentDocument((prev) => (prev ? { ...prev, content: accumulated, updatedAt: new Date() } : prev))
+        }
+      }
+
+      // process remaining buffer
+      if (buf.trim()) {
+        const raw = buf.replace(/\r$/, '')
+        if (raw && !raw.startsWith(':')) {
+          const payload = raw.startsWith('data:') ? raw.replace(/^data:\s*/, '') : raw
+          let textToAdd = payload
+          try {
+            const parsed = JSON.parse(payload)
+            if (typeof parsed === 'object' && parsed !== null) {
+              textToAdd = (parsed.text ?? parsed.content ?? parsed.message ?? parsed.response ?? parsed.data) as string
+            } else if (typeof parsed === 'string') {
+              textToAdd = parsed
+            }
+          } catch {
+            textToAdd = payload
+          }
+          textToAdd = String(textToAdd).replace(/\\r/g, '\r').replace(/\\n/g, '\n')
+          if (!accumulated.endsWith('\n') && !textToAdd.startsWith('\n')) {
+            accumulated += '\n' + textToAdd
+          } else {
+            accumulated += textToAdd
+          }
+          setCurrentDocument((prev) => (prev ? { ...prev, content: accumulated, updatedAt: new Date() } : prev))
+        }
+      }
+
+      // Finalize and save history
+      const finalDoc = currentDocument
+        ? { ...currentDocument, content: accumulated, updatedAt: new Date() }
+        : {
+            id: Date.now().toString(),
+            title: `Bản thảo - ${selectedTemplate.name}`,
+            type: selectedTemplate.category,
+            content: accumulated,
+            status: 'draft' as const,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          }
+
+      setCurrentDocument(finalDoc)
+      if (user) saveDraftingHistory(user.id, finalDoc)
       toast.success('Đã tạo văn bản với AI!')
-    }, 2000)
+    } catch (err: any) {
+      console.error('AI generation error:', err)
+      toast.error('AI tạm thời không phản hồi, dùng chế độ thử nghiệm')
+    } finally {
+      setIsGenerating(false)
+    }
   }
 
   const handleSave = () => {

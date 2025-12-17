@@ -1,13 +1,12 @@
-'use client'
+"use client";
 
-import { motion } from 'framer-motion'
-import Link from 'next/link'
-import Image from 'next/image'
-import { useState } from 'react'
-//
-import logoImg from '../1.png'
-import SupabaseUserIcon from './components/SupabaseUserIcon'
-import { useAuth } from '@/lib/auth/AuthProvider'
+import { motion } from "framer-motion";
+import Link from "next/link";
+import Image from "next/image";
+import { useState } from "react";
+// Use image from public/ directory to avoid import errors when file missing
+import SupabaseUserIcon from "./chat/components/SupabaseUserIcon";
+import { useAuth } from "@/lib/auth/AuthProvider";
 import {
   Search,
   MessageSquare,
@@ -32,206 +31,230 @@ import {
   Search as SearchIcon,
   Download as DownloadIcon,
   Share2 as ShareIcon,
-} from 'lucide-react'
+} from "lucide-react";
 
 const features = [
   {
     icon: <Search className="w-6 h-6" />,
-    title: 'Tìm kiếm Thông minh',
-    description: 'AI-powered search với semantic understanding và context awareness',
-    badge: 'Semantic AI',
+    title: "Tìm kiếm Thông minh",
+    description:
+      "AI-powered search với semantic understanding và context awareness",
+    badge: "Semantic AI",
   },
   {
     icon: <MessageSquare className="w-6 h-6" />,
-    title: 'Chatbot Pháp lý',
-    description: 'Trợ lý AI 24/7, trả lời câu hỏi pháp lý bằng tiếng Việt',
-    badge: '24/7',
+    title: "Chatbot Pháp lý",
+    description: "Trợ lý AI 24/7, trả lời câu hỏi pháp lý bằng tiếng Việt",
+    badge: "24/7",
   },
   {
     icon: <FileText className="w-6 h-6" />,
-    title: 'Soạn thảo Văn bản',
-    description: 'Tự động tạo hợp đồng, đơn từ với AI assistance',
-    badge: 'AI Drafting',
+    title: "Soạn thảo Văn bản",
+    description: "Tự động tạo hợp đồng, đơn từ với AI assistance",
+    badge: "AI Drafting",
   },
   {
     icon: <Users className="w-6 h-6" />,
-    title: 'Quản lý Hồ sơ',
-    description: 'Digital case management với workflow automation',
-    badge: 'Workflow',
+    title: "Quản lý Hồ sơ",
+    description: "Digital case management với workflow automation",
+    badge: "Workflow",
   },
   {
     icon: <Settings className="w-6 h-6" />,
-    title: 'Tích hợp API',
-    description: 'RESTful APIs cho third-party integrations',
-    badge: 'Open APIs',
+    title: "Tích hợp API",
+    description: "RESTful APIs cho third-party integrations",
+    badge: "Open APIs",
   },
   {
     icon: <BarChart3 className="w-6 h-6" />,
-    title: 'Analytics & Reports',
-    description: 'Real-time insights và predictive analytics',
-    badge: 'Realtime',
-  }
-]
+    title: "Analytics & Reports",
+    description: "Real-time insights và predictive analytics",
+    badge: "Realtime",
+  },
+];
 
 const heroHighlights = [
   {
     icon: <Shield className="w-5 h-5" />,
-    title: 'Bảo mật cấp chính phủ',
-    description: 'Tuân thủ tiêu chuẩn bảo mật dữ liệu & quyền riêng tư.'
+    title: "Bảo mật cấp chính phủ",
+    description: "Tuân thủ tiêu chuẩn bảo mật dữ liệu & quyền riêng tư.",
   },
   {
     icon: <Database className="w-5 h-5" />,
-    title: 'Kho dữ liệu 50K+ văn bản',
-    description: 'Được cập nhật liên tục từ nguồn chính thống.'
+    title: "Kho dữ liệu 50K+ văn bản",
+    description: "Được cập nhật liên tục từ nguồn chính thống.",
   },
   {
     icon: <Bot className="w-5 h-5" />,
-    title: 'AI hiểu ngữ cảnh Việt Nam',
-    description: 'Đào tạo trên dữ liệu pháp luật chuyên sâu.'
-  }
-]
+    title: "AI hiểu ngữ cảnh Việt Nam",
+    description: "Đào tạo trên dữ liệu pháp luật chuyên sâu.",
+  },
+];
 
 const useCases = [
   {
-    name: 'Công dân',
+    name: "Công dân",
     description:
-      'Tìm kiếm nhanh các quy định liên quan đến đời sống thường ngày và nhận giải đáp tin cậy chỉ với vài câu hỏi.',
-    highlights: ['Gợi ý thủ tục hành chính', 'Theo dõi thay đổi pháp luật', 'Kho câu hỏi thường gặp'],
+      "Tìm kiếm nhanh các quy định liên quan đến đời sống thường ngày và nhận giải đáp tin cậy chỉ với vài câu hỏi.",
+    highlights: [
+      "Gợi ý thủ tục hành chính",
+      "Theo dõi thay đổi pháp luật",
+      "Kho câu hỏi thường gặp",
+    ],
     icon: <Users className="w-5 h-5" />,
   },
   {
-    name: 'Doanh nghiệp',
+    name: "Doanh nghiệp",
     description:
-      'Quản trị rủi ro pháp lý, cập nhật quy định chuyên ngành và tự động hóa soạn thảo hợp đồng theo chuẩn nội bộ.',
-    highlights: ['Checklist tuân thủ', 'Quản lý hợp đồng tập trung', 'Cảnh báo thay đổi luật'],
+      "Quản trị rủi ro pháp lý, cập nhật quy định chuyên ngành và tự động hóa soạn thảo hợp đồng theo chuẩn nội bộ.",
+    highlights: [
+      "Checklist tuân thủ",
+      "Quản lý hợp đồng tập trung",
+      "Cảnh báo thay đổi luật",
+    ],
     icon: <TrendingUp className="w-5 h-5" />,
   },
   {
-    name: 'Cơ quan nhà nước',
+    name: "Cơ quan nhà nước",
     description:
-      'Chia sẻ dữ liệu pháp luật mở, điều phối phản hồi của người dân và xây dựng hệ tri thức dùng chung.',
-    highlights: ['Kho dữ liệu mở', 'Đồng bộ văn bản địa phương', 'Báo cáo vận hành realtime'],
+      "Chia sẻ dữ liệu pháp luật mở, điều phối phản hồi của người dân và xây dựng hệ tri thức dùng chung.",
+    highlights: [
+      "Kho dữ liệu mở",
+      "Đồng bộ văn bản địa phương",
+      "Báo cáo vận hành realtime",
+    ],
     icon: <Scale className="w-5 h-5" />,
-  }
-]
+  },
+];
 
 const journeySteps = [
   {
-    title: 'Kết nối & đồng bộ dữ liệu',
-    description: 'Tự động thu thập, phân loại và chuẩn hóa văn bản từ nguồn chính thống.',
+    title: "Kết nối & đồng bộ dữ liệu",
+    description:
+      "Tự động thu thập, phân loại và chuẩn hóa văn bản từ nguồn chính thống.",
     icon: <Database className="w-5 h-5 text-blue-600" />,
   },
   {
-    title: 'Phân tích bởi AI chuyên ngành',
-    description: 'AI pháp lý phân tích, tóm tắt và liên kết điều khoản liên quan.',
+    title: "Phân tích bởi AI chuyên ngành",
+    description:
+      "AI pháp lý phân tích, tóm tắt và liên kết điều khoản liên quan.",
     icon: <Bot className="w-5 h-5 text-blue-600" />,
   },
   {
-    title: 'Tùy biến theo nhu cầu',
-    description: 'Thiết lập workflow, phân quyền người dùng và tích hợp API vào hệ thống sẵn có.',
+    title: "Tùy biến theo nhu cầu",
+    description:
+      "Thiết lập workflow, phân quyền người dùng và tích hợp API vào hệ thống sẵn có.",
     icon: <Settings className="w-5 h-5 text-blue-600" />,
   },
   {
-    title: 'Triển khai & mở rộng',
-    description: 'Giám sát hiệu quả, đo lường mức độ tuân thủ và tối ưu trải nghiệm người dùng cuối.',
+    title: "Triển khai & mở rộng",
+    description:
+      "Giám sát hiệu quả, đo lường mức độ tuân thủ và tối ưu trải nghiệm người dùng cuối.",
     icon: <TrendingUp className="w-5 h-5 text-blue-600" />,
-  }
-]
+  },
+];
 
 const testimonials = [
   {
     quote:
-      'ViLaw giúp đội pháp chế của chúng tôi giảm hơn 60% thời gian tra cứu và soạn thảo văn bản nội bộ.',
-    name: 'Nguyễn Thu Hà',
-    role: 'Trưởng phòng Pháp chế - Fintech Việt',
+      "ViLaw giúp đội pháp chế của chúng tôi giảm hơn 60% thời gian tra cứu và soạn thảo văn bản nội bộ.",
+    name: "Nguyễn Thu Hà",
+    role: "Trưởng phòng Pháp chế - Fintech Việt",
   },
   {
     quote:
-      'Người dân truy cập trung tâm dịch vụ công đã có thể tự tìm hiểu thủ tục với chatbot thông minh, giảm tải cho cán bộ.',
-    name: 'Lê Quốc Cường',
-    role: 'Giám đốc Trung tâm Dịch vụ công TP. Huế',
+      "Người dân truy cập trung tâm dịch vụ công đã có thể tự tìm hiểu thủ tục với chatbot thông minh, giảm tải cho cán bộ.",
+    name: "Lê Quốc Cường",
+    role: "Giám đốc Trung tâm Dịch vụ công TP. Huế",
   },
   {
     quote:
-      'Chúng tôi kết hợp API của ViLaw để xây dựng ứng dụng hướng dẫn pháp lý cho sinh viên luật và luật sư trẻ.',
-    name: 'Trần Minh Phong',
-    role: 'Giảng viên Trường ĐH Luật TP.HCM',
-  }
-]
+      "Chúng tôi kết hợp API của ViLaw để xây dựng ứng dụng hướng dẫn pháp lý cho sinh viên luật và luật sư trẻ.",
+    name: "Trần Minh Phong",
+    role: "Giảng viên Trường ĐH Luật TP.HCM",
+  },
+];
 
 const resourceHighlights = [
   {
-    title: 'Bộ tài liệu triển khai nhanh',
-    description: 'Checklist, biểu mẫu và hướng dẫn tích hợp dành cho đội CNTT & pháp chế.',
+    title: "Bộ tài liệu triển khai nhanh",
+    description:
+      "Checklist, biểu mẫu và hướng dẫn tích hợp dành cho đội CNTT & pháp chế.",
     icon: <DownloadIcon className="w-5 h-5" />,
-    action: 'Tải xuống bộ kit',
+    action: "Tải xuống bộ kit",
   },
   {
-    title: 'API mẫu & SDK',
-    description: 'Thử nghiệm API tìm kiếm, soạn thảo và quản lý văn bản với sandbox miễn phí.',
+    title: "API mẫu & SDK",
+    description:
+      "Thử nghiệm API tìm kiếm, soạn thảo và quản lý văn bản với sandbox miễn phí.",
     icon: <ShareIcon className="w-5 h-5" />,
-    action: 'Khám phá API',
+    action: "Khám phá API",
   },
   {
-    title: 'Trung tâm học liệu pháp luật',
-    description: 'Chuỗi webinar, hướng dẫn thực hành và câu chuyện chuyển đổi số pháp lý.',
+    title: "Trung tâm học liệu pháp luật",
+    description:
+      "Chuỗi webinar, hướng dẫn thực hành và câu chuyện chuyển đổi số pháp lý.",
     icon: <BookOpen className="w-5 h-5" />,
-    action: 'Xem sự kiện',
-  }
-]
+    action: "Xem sự kiện",
+  },
+];
 
 const packages = [
   {
-    name: 'Gov',
-    badge: 'Chính phủ',
-    price: 'Miễn phí',
+    name: "Gov",
+    badge: "Chính phủ",
+    price: "Miễn phí",
     features: [
-      'Truy cập cơ bản',
-      'Tìm kiếm văn bản',
-      'Chatbot hỗ trợ',
-      'API cơ bản'
+      "Truy cập cơ bản",
+      "Tìm kiếm văn bản",
+      "Chatbot hỗ trợ",
+      "API cơ bản",
     ],
-    color: 'legal-500',
-    popular: false
+    color: "legal-500",
+    popular: false,
   },
   {
-    name: 'Edu',
-    badge: 'Giáo dục',
-    price: 'Liên hệ',
+    name: "Edu",
+    badge: "Giáo dục",
+    price: "Liên hệ",
     features: [
-      'Tất cả tính năng Gov',
-      'Tích hợp LMS',
-      'Custom branding',
-      'Priority support'
+      "Tất cả tính năng Gov",
+      "Tích hợp LMS",
+      "Custom branding",
+      "Priority support",
     ],
-    color: 'accent-500',
-    popular: false
+    color: "accent-500",
+    popular: false,
   },
   {
-    name: 'Pro',
-    badge: 'Doanh nghiệp',
-    price: 'Liên hệ',
+    name: "Pro",
+    badge: "Doanh nghiệp",
+    price: "Liên hệ",
     features: [
-      'Tất cả tính năng Edu',
-      'Advanced AI models',
-      'Custom development',
-      'Dedicated support'
+      "Tất cả tính năng Edu",
+      "Advanced AI models",
+      "Custom development",
+      "Dedicated support",
     ],
-    color: 'primary-600',
-    popular: true
-  }
-]
+    color: "primary-600",
+    popular: true,
+  },
+];
 
 const stats = [
-  { label: 'Văn bản pháp luật', value: '50K+', icon: <FileText className="w-5 h-5" /> },
-  { label: 'Người dùng', value: '10K+', icon: <Users className="w-5 h-5" /> },
-  { label: 'Tỉnh thành', value: '63/63', icon: <Globe className="w-5 h-5" /> },
-  { label: 'Uptime', value: '99.9%', icon: <Zap className="w-5 h-5" /> }
-]
+  {
+    label: "Văn bản pháp luật",
+    value: "50K+",
+    icon: <FileText className="w-5 h-5" />,
+  },
+  { label: "Người dùng", value: "10K+", icon: <Users className="w-5 h-5" /> },
+  { label: "Tỉnh thành", value: "63/63", icon: <Globe className="w-5 h-5" /> },
+  { label: "Uptime", value: "99.9%", icon: <Zap className="w-5 h-5" /> },
+];
 
 export default function HomePage() {
-  const [activeUseCase, setActiveUseCase] = useState(useCases[0])
-  const { user, loading } = useAuth()
+  const [activeUseCase, setActiveUseCase] = useState(useCases[0]);
+  const { user, loading } = useAuth();
 
   return (
     <div className="min-h-screen bg-hero relative">
@@ -242,20 +265,36 @@ export default function HomePage() {
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center space-x-4">
               <div className="w-16 h-16 rounded-xl overflow-hidden bg-white shadow-sm">
-                <Image src={logoImg} alt="ViLaw" width={64} height={64} className="object-contain w-full h-full" />
+                <Image
+                  src="/1.png"
+                  alt="ViLaw"
+                  width={64}
+                  height={64}
+                  className="object-contain w-full h-full"
+                />
               </div>
               <div>
                 <h1 className="text-xl font-bold text-slate-900">ViLaw</h1>
                 <p className="text-sm text-slate-600">Nền tảng Pháp lý Số</p>
               </div>
             </div>
-            
+
             <nav className="hidden md:flex items-center space-x-8">
-              <Link href="/legal" className="nav-link">Văn bản</Link>
-              <Link href="/chat" className="nav-link">Chat AI</Link>
-              <Link href="/documents" className="nav-link">Soạn thảo</Link>
-              <Link href="/contract" className="nav-link">Hợp đồng</Link>
-              <Link href="/dashboard" className="nav-link">Admin</Link>
+              <Link href="/legal" className="nav-link">
+                Văn bản
+              </Link>
+              <Link href="/chat" className="nav-link">
+                Chat AI
+              </Link>
+              <Link href="/documents" className="nav-link">
+                Soạn thảo
+              </Link>
+              <Link href="/contract" className="nav-link">
+                Hợp đồng
+              </Link>
+              <Link href="/dashboard" className="nav-link">
+                Admin
+              </Link>
             </nav>
 
             <div className="flex items-center space-x-4">
@@ -296,20 +335,28 @@ export default function HomePage() {
 
               <div className="space-y-6">
                 <h1 className="text-4xl md:text-6xl font-bold text-slate-900 text-balance">
-                  Mỗi công dân một <span className="text-gradient">trợ lý pháp lý AI</span>
+                  Mỗi công dân một{" "}
+                  <span className="text-gradient">trợ lý pháp lý AI</span>
                 </h1>
                 <p className="text-lg md:text-xl text-slate-600 leading-relaxed max-w-2xl">
-                  ViLaw kết hợp dữ liệu pháp luật chính thống, AI chuyên sâu và quy trình vận hành để giúp bạn ra quyết định
-                  chính xác, minh bạch và nhanh chóng hơn.
+                  ViLaw kết hợp dữ liệu pháp luật chính thống, AI chuyên sâu và
+                  quy trình vận hành để giúp bạn ra quyết định chính xác, minh
+                  bạch và nhanh chóng hơn.
                 </p>
               </div>
 
               <div className="flex flex-col sm:flex-row gap-4">
-                <Link href="/chat" className="btn-primary inline-flex items-center justify-center">
+                <Link
+                  href="/chat"
+                  className="btn-primary inline-flex items-center justify-center"
+                >
                   <Play className="w-5 h-5 mr-2" />
                   Dùng thử trợ lý AI
                 </Link>
-                <Link href="/legal" className="btn-outline inline-flex items-center justify-center">
+                <Link
+                  href="/legal"
+                  className="btn-outline inline-flex items-center justify-center"
+                >
                   <Search className="w-5 h-5 mr-2" />
                   Khám phá kho văn bản
                 </Link>
@@ -320,8 +367,12 @@ export default function HomePage() {
                   <div key={item.title} className="highlight-card">
                     <div className="highlight-icon">{item.icon}</div>
                     <div>
-                      <h3 className="font-semibold text-slate-900 mb-1">{item.title}</h3>
-                      <p className="text-sm text-slate-600 leading-relaxed">{item.description}</p>
+                      <h3 className="font-semibold text-slate-900 mb-1">
+                        {item.title}
+                      </h3>
+                      <p className="text-sm text-slate-600 leading-relaxed">
+                        {item.description}
+                      </p>
                     </div>
                   </div>
                 ))}
@@ -337,8 +388,12 @@ export default function HomePage() {
               <div className="hero-card">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-slate-500">Trạng thái hệ thống</p>
-                    <p className="text-2xl font-semibold text-slate-900">Hoạt động ổn định</p>
+                    <p className="text-sm text-slate-500">
+                      Trạng thái hệ thống
+                    </p>
+                    <p className="text-2xl font-semibold text-slate-900">
+                      Hoạt động ổn định
+                    </p>
                   </div>
                   <div className="inline-flex items-center px-3 py-1 rounded-full bg-emerald-50 text-emerald-600 text-sm font-medium">
                     <CheckCircle className="w-4 h-4 mr-2" />
@@ -349,8 +404,12 @@ export default function HomePage() {
                 <div className="mt-8 space-y-6">
                   <div className="journey-card">
                     <div>
-                      <p className="text-xs uppercase tracking-wide text-slate-500">Mới cập nhật</p>
-                      <h3 className="text-lg font-semibold text-slate-900">Kho pháp luật quốc gia</h3>
+                      <p className="text-xs uppercase tracking-wide text-slate-500">
+                        Mới cập nhật
+                      </p>
+                      <h3 className="text-lg font-semibold text-slate-900">
+                        Kho pháp luật quốc gia
+                      </h3>
                     </div>
                     <div className="inline-flex items-center text-sm text-blue-600">
                       <ArrowRight className="w-4 h-4 mr-1" />
@@ -377,8 +436,12 @@ export default function HomePage() {
                     <Award className="w-6 h-6" />
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500 uppercase tracking-wide">Chứng nhận</p>
-                    <p className="font-semibold text-slate-900">Đối tác chuyển đổi số 2024</p>
+                    <p className="text-xs text-slate-500 uppercase tracking-wide">
+                      Chứng nhận
+                    </p>
+                    <p className="font-semibold text-slate-900">
+                      Đối tác chuyển đổi số 2024
+                    </p>
                   </div>
                 </div>
               </div>
@@ -402,7 +465,9 @@ export default function HomePage() {
                 <div className="flex items-center justify-center w-16 h-16 bg-blue-50 rounded-2xl mx-auto mb-4 shadow-inner">
                   <div className="text-blue-600">{stat.icon}</div>
                 </div>
-                <div className="text-3xl font-bold text-slate-900 mb-2">{stat.value}</div>
+                <div className="text-3xl font-bold text-slate-900 mb-2">
+                  {stat.value}
+                </div>
                 <div className="text-slate-600 font-medium">{stat.label}</div>
               </motion.div>
             ))}
@@ -415,9 +480,12 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16 space-y-4">
             <span className="section-badge">Năng lực cốt lõi</span>
-            <h2 className="text-4xl font-bold text-slate-900">Tính năng nổi bật</h2>
+            <h2 className="text-4xl font-bold text-slate-900">
+              Tính năng nổi bật
+            </h2>
             <p className="text-xl text-slate-600 max-w-3xl mx-auto">
-              ViLaw kết nối dữ liệu pháp luật toàn diện với trải nghiệm người dùng hiện đại, hỗ trợ mọi vai trò trong hệ sinh thái pháp lý.
+              ViLaw kết nối dữ liệu pháp luật toàn diện với trải nghiệm người
+              dùng hiện đại, hỗ trợ mọi vai trò trong hệ sinh thái pháp lý.
             </p>
           </div>
 
@@ -436,8 +504,12 @@ export default function HomePage() {
                 <div className="flex items-center gap-2 text-sm font-medium text-blue-600 mb-3">
                   <span className="badge-soft">{feature.badge}</span>
                 </div>
-                <h3 className="text-xl font-semibold text-slate-900 mb-3">{feature.title}</h3>
-                <p className="text-slate-600 leading-relaxed">{feature.description}</p>
+                <h3 className="text-xl font-semibold text-slate-900 mb-3">
+                  {feature.title}
+                </h3>
+                <p className="text-slate-600 leading-relaxed">
+                  {feature.description}
+                </p>
               </motion.div>
             ))}
           </div>
@@ -449,13 +521,16 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid gap-12 lg:grid-cols-[0.6fr_1.4fr] items-center">
             <div className="space-y-6">
-              <span className="section-badge">Trải nghiệm phù hợp từng đối tượng</span>
+              <span className="section-badge">
+                Trải nghiệm phù hợp từng đối tượng
+              </span>
               <h2 className="text-3xl md:text-4xl font-bold text-slate-900">
                 Thiết kế để phục vụ nhiều nhu cầu pháp lý khác nhau
               </h2>
               <p className="text-lg text-slate-600">
-                Lựa chọn vai trò của bạn để xem ViLaw hỗ trợ thế nào. Từng gói giải pháp được cá nhân hóa quy trình, tài nguyên
-                và công cụ cộng tác phù hợp.
+                Lựa chọn vai trò của bạn để xem ViLaw hỗ trợ thế nào. Từng gói
+                giải pháp được cá nhân hóa quy trình, tài nguyên và công cụ cộng
+                tác phù hợp.
               </p>
             </div>
 
@@ -465,7 +540,11 @@ export default function HomePage() {
                   <button
                     key={useCase.name}
                     onClick={() => setActiveUseCase(useCase)}
-                    className={`usecase-tab ${activeUseCase.name === useCase.name ? 'usecase-tab-active' : ''}`}
+                    className={`usecase-tab ${
+                      activeUseCase.name === useCase.name
+                        ? "usecase-tab-active"
+                        : ""
+                    }`}
                   >
                     <span className="mr-2">{useCase.icon}</span>
                     {useCase.name}
@@ -480,8 +559,12 @@ export default function HomePage() {
                 transition={{ duration: 0.25 }}
                 className="usecase-content"
               >
-                <h3 className="text-2xl font-semibold text-slate-900 mb-3">{activeUseCase.name}</h3>
-                <p className="text-slate-600 text-lg mb-6">{activeUseCase.description}</p>
+                <h3 className="text-2xl font-semibold text-slate-900 mb-3">
+                  {activeUseCase.name}
+                </h3>
+                <p className="text-slate-600 text-lg mb-6">
+                  {activeUseCase.description}
+                </p>
                 <div className="grid gap-3 sm:grid-cols-2">
                   {activeUseCase.highlights.map((item) => (
                     <div key={item} className="usecase-highlight">
@@ -499,7 +582,7 @@ export default function HomePage() {
       {/* Test System Card */}
       <section className="py-20 bg-section">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div 
+          <motion.div
             className="card-elevated bg-gradient-to-r from-blue-50 to-slate-50"
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -512,44 +595,65 @@ export default function HomePage() {
               <p className="text-lg text-slate-600 mb-12 max-w-2xl mx-auto">
                 Trải nghiệm các tính năng AI-powered của ViLaw với dữ liệu mẫu
               </p>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <Link href="/legal" className="card hover:shadow-medium transition-all duration-300 group">
+                <Link
+                  href="/legal"
+                  className="card hover:shadow-medium transition-all duration-300 group"
+                >
                   <div className="flex items-center space-x-4 mb-4">
                     <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
                       <SearchIcon className="w-6 h-6 text-blue-600" />
                     </div>
-                    <h3 className="text-lg font-semibold text-slate-900">Duyệt văn bản</h3>
+                    <h3 className="text-lg font-semibold text-slate-900">
+                      Duyệt văn bản
+                    </h3>
                   </div>
-                  <p className="text-slate-600 mb-6">Tìm kiếm và lọc văn bản pháp luật với AI</p>
+                  <p className="text-slate-600 mb-6">
+                    Tìm kiếm và lọc văn bản pháp luật với AI
+                  </p>
                   <div className="flex items-center text-blue-600 group-hover:text-blue-700 font-medium">
                     <span>Thử ngay</span>
                     <ArrowRight className="w-4 h-4 ml-2" />
                   </div>
                 </Link>
 
-                <Link href="/chat" className="card hover:shadow-medium transition-all duration-300 group">
+                <Link
+                  href="/chat"
+                  className="card hover:shadow-medium transition-all duration-300 group"
+                >
                   <div className="flex items-center space-x-4 mb-4">
                     <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center">
                       <MessageSquare className="w-6 h-6 text-slate-600" />
                     </div>
-                    <h3 className="text-lg font-semibold text-slate-900">Chat AI</h3>
+                    <h3 className="text-lg font-semibold text-slate-900">
+                      Chat AI
+                    </h3>
                   </div>
-                  <p className="text-slate-600 mb-6">Trò chuyện với trợ lý pháp lý AI</p>
+                  <p className="text-slate-600 mb-6">
+                    Trò chuyện với trợ lý pháp lý AI
+                  </p>
                   <div className="flex items-center text-slate-600 group-hover:text-slate-700 font-medium">
                     <span>Thử ngay</span>
                     <ArrowRight className="w-4 h-4 ml-2" />
                   </div>
                 </Link>
 
-                <Link href="/documents" className="card hover:shadow-medium transition-all duration-300 group">
+                <Link
+                  href="/documents"
+                  className="card hover:shadow-medium transition-all duration-300 group"
+                >
                   <div className="flex items-center space-x-4 mb-4">
                     <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
                       <FileText className="w-6 h-6 text-blue-600" />
                     </div>
-                    <h3 className="text-lg font-semibold text-slate-900">Soạn thảo</h3>
+                    <h3 className="text-lg font-semibold text-slate-900">
+                      Soạn thảo
+                    </h3>
                   </div>
-                  <p className="text-slate-600 mb-6">Tạo văn bản pháp lý với AI assistance</p>
+                  <p className="text-slate-600 mb-6">
+                    Tạo văn bản pháp lý với AI assistance
+                  </p>
                   <div className="flex items-center text-blue-600 group-hover:text-blue-700 font-medium">
                     <span>Thử ngay</span>
                     <ArrowRight className="w-4 h-4 ml-2" />
@@ -566,10 +670,13 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16 space-y-4">
             <span className="section-badge">Lộ trình chuyển đổi</span>
-            <h2 className="text-4xl font-bold text-slate-900">Triển khai ViLaw trong 4 bước</h2>
+            <h2 className="text-4xl font-bold text-slate-900">
+              Triển khai ViLaw trong 4 bước
+            </h2>
             <p className="text-xl text-slate-600 max-w-3xl mx-auto">
-              Từ thiết lập dữ liệu đến vận hành, đội ngũ ViLaw đồng hành cùng bạn trong từng giai đoạn để đảm bảo hệ thống hoạt động
-              hiệu quả và bền vững.
+              Từ thiết lập dữ liệu đến vận hành, đội ngũ ViLaw đồng hành cùng
+              bạn trong từng giai đoạn để đảm bảo hệ thống hoạt động hiệu quả và
+              bền vững.
             </p>
           </div>
 
@@ -584,8 +691,12 @@ export default function HomePage() {
                 transition={{ duration: 0.4, delay: index * 0.1 }}
               >
                 <div className="journey-icon">{step.icon}</div>
-                <h3 className="text-lg font-semibold text-slate-900 mb-2">{step.title}</h3>
-                <p className="text-slate-600 text-sm leading-relaxed">{step.description}</p>
+                <h3 className="text-lg font-semibold text-slate-900 mb-2">
+                  {step.title}
+                </h3>
+                <p className="text-slate-600 text-sm leading-relaxed">
+                  {step.description}
+                </p>
               </motion.div>
             ))}
           </div>
@@ -609,9 +720,7 @@ export default function HomePage() {
               <motion.div
                 key={pkg.name}
                 className={`relative card-elevated ${
-                  pkg.popular 
-                    ? 'border-blue-200 shadow-medium' 
-                    : ''
+                  pkg.popular ? "border-blue-200 shadow-medium" : ""
                 }`}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -624,13 +733,17 @@ export default function HomePage() {
                     </span>
                   </div>
                 )}
-                
+
                 <div className="text-center mb-8">
                   <div className="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-blue-50 text-blue-600 mb-6">
                     {pkg.badge}
                   </div>
-                  <h3 className="text-2xl font-bold text-slate-900 mb-2">{pkg.name}</h3>
-                  <div className="text-4xl font-bold text-slate-900 mb-1">{pkg.price}</div>
+                  <h3 className="text-2xl font-bold text-slate-900 mb-2">
+                    {pkg.name}
+                  </h3>
+                  <div className="text-4xl font-bold text-slate-900 mb-1">
+                    {pkg.price}
+                  </div>
                   <p className="text-slate-600">/ tháng</p>
                 </div>
 
@@ -643,13 +756,11 @@ export default function HomePage() {
                   ))}
                 </ul>
 
-                {pkg.price === 'Miễn phí' ? (
-                  <Link 
-                    href="/supabase-login" 
+                {pkg.price === "Miễn phí" ? (
+                  <Link
+                    href="/supabase-login"
                     className={`w-full py-3 px-6 rounded-lg font-medium text-center transition-all duration-200 ${
-                      pkg.popular
-                        ? 'btn-primary'
-                        : 'btn-secondary'
+                      pkg.popular ? "btn-primary" : "btn-secondary"
                     }`}
                   >
                     Sử dụng miễn phí
@@ -658,9 +769,7 @@ export default function HomePage() {
                   <Link
                     href={`/payment?pkg=${pkg.name}`}
                     className={`w-full py-3 px-6 rounded-lg font-medium text-center transition-all duration-200 ${
-                      pkg.popular
-                        ? 'btn-primary'
-                        : 'btn-secondary'
+                      pkg.popular ? "btn-primary" : "btn-secondary"
                     }`}
                   >
                     Thanh toán bằng ví
@@ -676,10 +785,15 @@ export default function HomePage() {
       <section className="py-20 bg-section">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16 space-y-4">
-            <span className="section-badge">Tin tưởng từ hệ sinh thái pháp lý</span>
-            <h2 className="text-4xl font-bold text-slate-900">Khách hàng nói gì về ViLaw</h2>
+            <span className="section-badge">
+              Tin tưởng từ hệ sinh thái pháp lý
+            </span>
+            <h2 className="text-4xl font-bold text-slate-900">
+              Khách hàng nói gì về ViLaw
+            </h2>
             <p className="text-xl text-slate-600 max-w-3xl mx-auto">
-              Các tổ chức, doanh nghiệp và cơ quan nhà nước đang sử dụng ViLaw để xây dựng trải nghiệm pháp lý số minh bạch.
+              Các tổ chức, doanh nghiệp và cơ quan nhà nước đang sử dụng ViLaw
+              để xây dựng trải nghiệm pháp lý số minh bạch.
             </p>
           </div>
 
@@ -698,7 +812,9 @@ export default function HomePage() {
                     <Star key={starIndex} className="w-4 h-4 fill-current" />
                   ))}
                 </div>
-                <p className="text-slate-700 leading-relaxed mb-6">“{item.quote}”</p>
+                <p className="text-slate-700 leading-relaxed mb-6">
+                  “{item.quote}”
+                </p>
                 <div>
                   <p className="font-semibold text-slate-900">{item.name}</p>
                   <p className="text-sm text-slate-500">{item.role}</p>
@@ -714,9 +830,12 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16 space-y-4">
             <span className="section-badge">Nguồn lực đồng hành</span>
-            <h2 className="text-4xl font-bold text-slate-900">Tăng tốc triển khai cùng đội ngũ ViLaw</h2>
+            <h2 className="text-4xl font-bold text-slate-900">
+              Tăng tốc triển khai cùng đội ngũ ViLaw
+            </h2>
             <p className="text-xl text-slate-600 max-w-3xl mx-auto">
-              Bộ tài nguyên được chọn lọc dành cho nhóm triển khai, giúp bạn nhanh chóng làm chủ nền tảng và lan tỏa tới cộng đồng.
+              Bộ tài nguyên được chọn lọc dành cho nhóm triển khai, giúp bạn
+              nhanh chóng làm chủ nền tảng và lan tỏa tới cộng đồng.
             </p>
           </div>
 
@@ -731,9 +850,16 @@ export default function HomePage() {
                 transition={{ duration: 0.4, delay: index * 0.1 }}
               >
                 <div className="resource-icon">{resource.icon}</div>
-                <h3 className="text-xl font-semibold text-slate-900 mb-3">{resource.title}</h3>
-                <p className="text-slate-600 leading-relaxed mb-6">{resource.description}</p>
-                <Link href="/documents" className="inline-flex items-center text-blue-600 font-medium group-hover:text-blue-700">
+                <h3 className="text-xl font-semibold text-slate-900 mb-3">
+                  {resource.title}
+                </h3>
+                <p className="text-slate-600 leading-relaxed mb-6">
+                  {resource.description}
+                </p>
+                <Link
+                  href="/documents"
+                  className="inline-flex items-center text-blue-600 font-medium group-hover:text-blue-700"
+                >
                   {resource.action}
                   <ArrowRight className="w-4 h-4 ml-2" />
                 </Link>
@@ -750,18 +876,26 @@ export default function HomePage() {
             <div className="space-y-4">
               <span className="section-badge">Sẵn sàng chuyển đổi số?</span>
               <h2 className="text-3xl md:text-4xl font-bold text-slate-900">
-                Khởi động cùng ViLaw và mang trải nghiệm pháp lý số đến với mọi người dân
+                Khởi động cùng ViLaw và mang trải nghiệm pháp lý số đến với mọi
+                người dân
               </h2>
               <p className="text-lg text-slate-600 max-w-3xl">
-                Liên hệ đội ngũ chuyên gia để được tư vấn hành trình phù hợp, demo chuyên sâu và kế hoạch triển khai tối ưu chi phí.
+                Liên hệ đội ngũ chuyên gia để được tư vấn hành trình phù hợp,
+                demo chuyên sâu và kế hoạch triển khai tối ưu chi phí.
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-4">
-              <Link href="/payment" className="btn-primary inline-flex items-center justify-center">
+              <Link
+                href="/payment"
+                className="btn-primary inline-flex items-center justify-center"
+              >
                 <ArrowRight className="w-5 h-5 mr-2" />
                 Đặt lịch tư vấn
               </Link>
-              <Link href="/supabase-demo" className="btn-outline inline-flex items-center justify-center">
+              <Link
+                href="/supabase-demo"
+                className="btn-outline inline-flex items-center justify-center"
+              >
                 <Play className="w-5 h-5 mr-2" />
                 Xem demo tương tác
               </Link>
@@ -790,32 +924,94 @@ export default function HomePage() {
             </div>
 
             <div>
-              <h4 className="text-lg font-semibold mb-6 text-white">Sản phẩm</h4>
+              <h4 className="text-lg font-semibold mb-6 text-white">
+                Sản phẩm
+              </h4>
               <ul className="space-y-3 text-slate-400">
-                <li><Link href="/legal" className="hover:text-white transition-colors">Văn bản pháp luật</Link></li>
-                <li><Link href="/chat" className="hover:text-white transition-colors">Chat AI</Link></li>
-                <li><Link href="/documents" className="hover:text-white transition-colors">Soạn thảo</Link></li>
-                <li><Link href="/admin" className="hover:text-white transition-colors">Admin</Link></li>
+                <li>
+                  <Link
+                    href="/legal"
+                    className="hover:text-white transition-colors"
+                  >
+                    Văn bản pháp luật
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/chat"
+                    className="hover:text-white transition-colors"
+                  >
+                    Chat AI
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/documents"
+                    className="hover:text-white transition-colors"
+                  >
+                    Soạn thảo
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/admin"
+                    className="hover:text-white transition-colors"
+                  >
+                    Admin
+                  </Link>
+                </li>
               </ul>
             </div>
 
             <div>
               <h4 className="text-lg font-semibold mb-6 text-white">Hỗ trợ</h4>
               <ul className="space-y-3 text-slate-400">
-                <li><Link href="#" className="hover:text-white transition-colors">Tài liệu</Link></li>
-                <li><Link href="#" className="hover:text-white transition-colors">API</Link></li>
-                <li><Link href="#" className="hover:text-white transition-colors">Liên hệ</Link></li>
-                <li><Link href="#" className="hover:text-white transition-colors">FAQ</Link></li>
+                <li>
+                  <Link href="#" className="hover:text-white transition-colors">
+                    Tài liệu
+                  </Link>
+                </li>
+                <li>
+                  <Link href="#" className="hover:text-white transition-colors">
+                    API
+                  </Link>
+                </li>
+                <li>
+                  <Link href="#" className="hover:text-white transition-colors">
+                    Liên hệ
+                  </Link>
+                </li>
+                <li>
+                  <Link href="#" className="hover:text-white transition-colors">
+                    FAQ
+                  </Link>
+                </li>
               </ul>
             </div>
 
             <div>
               <h4 className="text-lg font-semibold mb-6 text-white">Công ty</h4>
               <ul className="space-y-3 text-slate-400">
-                <li><Link href="#" className="hover:text-white transition-colors">Về chúng tôi</Link></li>
-                <li><Link href="#" className="hover:text-white transition-colors">Tuyển dụng</Link></li>
-                <li><Link href="#" className="hover:text-white transition-colors">Bảo mật</Link></li>
-                <li><Link href="#" className="hover:text-white transition-colors">Điều khoản</Link></li>
+                <li>
+                  <Link href="#" className="hover:text-white transition-colors">
+                    Về chúng tôi
+                  </Link>
+                </li>
+                <li>
+                  <Link href="#" className="hover:text-white transition-colors">
+                    Tuyển dụng
+                  </Link>
+                </li>
+                <li>
+                  <Link href="#" className="hover:text-white transition-colors">
+                    Bảo mật
+                  </Link>
+                </li>
+                <li>
+                  <Link href="#" className="hover:text-white transition-colors">
+                    Điều khoản
+                  </Link>
+                </li>
               </ul>
             </div>
           </div>
@@ -826,5 +1022,5 @@ export default function HomePage() {
         </div>
       </footer>
     </div>
-  )
-} 
+  );
+}

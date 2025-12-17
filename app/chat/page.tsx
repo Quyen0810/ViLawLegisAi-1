@@ -1,8 +1,8 @@
-'use client'
+"use client";
 
-import { useState, useRef, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { motion, AnimatePresence } from 'framer-motion'
+import { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Send,
   User,
@@ -72,195 +72,219 @@ import {
   Crown,
   AlertCircle,
   Lock,
-} from 'lucide-react'
-import Link from 'next/link'
-import toast from 'react-hot-toast'
-import { useAuth } from '@/lib/auth/AuthProvider'
+} from "lucide-react";
+import Link from "next/link";
+import toast from "react-hot-toast";
+import { useAuth } from "@/lib/auth/AuthProvider";
 
 interface Message {
-  id: string
-  type: 'user' | 'ai'
-  content: string
-  timestamp: Date
-  isTyping?: boolean
-  audioUrl?: string
-  isPlaying?: boolean
+  id: string;
+  type: "user" | "ai";
+  content: string;
+  timestamp: Date;
+  isTyping?: boolean;
+  audioUrl?: string;
+  isPlaying?: boolean;
 }
 
 interface Suggestion {
-  id: string
-  text: string
-  category: 'general' | 'contract' | 'labor' | 'property' | 'criminal' | 'civil'
-  icon: React.ReactNode
+  id: string;
+  text: string;
+  category:
+    | "general"
+    | "contract"
+    | "labor"
+    | "property"
+    | "criminal"
+    | "civil";
+  icon: React.ReactNode;
 }
 
 const suggestions: Suggestion[] = [
   {
-    id: '1',
-    text: 'Tôi có quyền gì khi bị sa thải trái phép?',
-    category: 'labor',
-    icon: <Building className="w-4 h-4" />
+    id: "1",
+    text: "Tôi có quyền gì khi bị sa thải trái phép?",
+    category: "labor",
+    icon: <Building className="w-4 h-4" />,
   },
   {
-    id: '2',
-    text: 'Cách soạn thảo hợp đồng mua bán nhà?',
-    category: 'property',
-    icon: <FileText className="w-4 h-4" />
+    id: "2",
+    text: "Cách soạn thảo hợp đồng mua bán nhà?",
+    category: "property",
+    icon: <FileText className="w-4 h-4" />,
   },
   {
-    id: '3',
-    text: 'Thủ tục thành lập công ty TNHH?',
-    category: 'general',
-    icon: <Scale className="w-4 h-4" />
+    id: "3",
+    text: "Thủ tục thành lập công ty TNHH?",
+    category: "general",
+    icon: <Scale className="w-4 h-4" />,
   },
   {
-    id: '4',
-    text: 'Quyền lợi người lao động khi nghỉ việc?',
-    category: 'labor',
-    icon: <Gavel className="w-4 h-4" />
+    id: "4",
+    text: "Quyền lợi người lao động khi nghỉ việc?",
+    category: "labor",
+    icon: <Gavel className="w-4 h-4" />,
   },
   {
-    id: '5',
-    text: 'Cách khiếu nại quyết định hành chính?',
-    category: 'civil',
-    icon: <MessageSquare className="w-4 h-4" />
+    id: "5",
+    text: "Cách khiếu nại quyết định hành chính?",
+    category: "civil",
+    icon: <MessageSquare className="w-4 h-4" />,
   },
   {
-    id: '6',
-    text: 'Thủ tục thừa kế tài sản?',
-    category: 'property',
-    icon: <BookOpen className="w-4 h-4" />
-  }
-]
+    id: "6",
+    text: "Thủ tục thừa kế tài sản?",
+    category: "property",
+    icon: <BookOpen className="w-4 h-4" />,
+  },
+];
 
 const categories = [
-  { id: 'general', name: 'Tổng hợp', icon: <Scale className="w-4 h-4" /> },
-  { id: 'contract', name: 'Hợp đồng', icon: <FileText className="w-4 h-4" /> },
-  { id: 'labor', name: 'Lao động', icon: <Building className="w-4 h-4" /> },
-  { id: 'property', name: 'Tài sản', icon: <BookOpen className="w-4 h-4" /> },
-  { id: 'criminal', name: 'Hình sự', icon: <Gavel className="w-4 h-4" /> },
-  { id: 'civil', name: 'Dân sự', icon: <MessageSquare className="w-4 h-4" /> }
-]
+  { id: "general", name: "Tổng hợp", icon: <Scale className="w-4 h-4" /> },
+  { id: "contract", name: "Hợp đồng", icon: <FileText className="w-4 h-4" /> },
+  { id: "labor", name: "Lao động", icon: <Building className="w-4 h-4" /> },
+  { id: "property", name: "Tài sản", icon: <BookOpen className="w-4 h-4" /> },
+  { id: "criminal", name: "Hình sự", icon: <Gavel className="w-4 h-4" /> },
+  { id: "civil", name: "Dân sự", icon: <MessageSquare className="w-4 h-4" /> },
+];
 
 // Giới hạn số câu hỏi theo gói user
 const QUERY_LIMITS = {
   normal: 10,
   pro: 100,
   admin: Infinity,
-} as const
+} as const;
 
 // Lưu trữ lịch sử chat trong localStorage
-const getChatHistoryKey = (userId: string) => `vilaw_chat_history_${userId}`
-const getQueryCountKey = (userId: string) => `vilaw_query_count_${userId}`
+const getChatHistoryKey = (userId: string) => `vilaw_chat_history_${userId}`;
+const getQueryCountKey = (userId: string) => `vilaw_query_count_${userId}`;
 
 // Lấy user level từ email hoặc metadata
-const getUserLevel = (email?: string): 'normal' | 'pro' | 'admin' => {
-  if (!email) return 'normal'
-  if (email.includes('admin') || email.includes('@vilaw.com')) return 'admin'
-  if (email.includes('pro')) return 'pro'
-  return 'normal'
-}
+const getUserLevel = (email?: string): "normal" | "pro" | "admin" => {
+  if (!email) return "normal";
+  if (email.includes("admin") || email.includes("@vilaw.com")) return "admin";
+  if (email.includes("pro")) return "pro";
+  return "normal";
+};
 
 export default function ChatPage() {
-  const router = useRouter()
-  const { user, loading } = useAuth()
+  const router = useRouter();
+  const { user, loading } = useAuth();
   const [messages, setMessages] = useState<Message[]>([
     {
-      id: '1',
-      type: 'ai',
-      content: 'Xin chào! Tôi là trợ lý pháp lý AI của ViLaw. Tôi có thể giúp bạn tìm hiểu về pháp luật Việt Nam, soạn thảo văn bản pháp lý, và trả lời các câu hỏi liên quan đến quyền lợi của bạn. Bạn có thể hỏi tôi bất cứ điều gì!',
-      timestamp: new Date()
-    }
-  ])
-  const [inputValue, setInputValue] = useState('')
-  const [isTyping, setIsTyping] = useState(false)
-  const [isRecording, setIsRecording] = useState(false)
-  const [isMuted, setIsMuted] = useState(false)
-  const [selectedCategory, setSelectedCategory] = useState<string>('all')
-  const [queryCount, setQueryCount] = useState(0)
-  const [userLevel, setUserLevel] = useState<'normal' | 'pro' | 'admin'>('normal')
-  const [isLimitReached, setIsLimitReached] = useState(false)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+      id: "1",
+      type: "ai",
+      content:
+        "Xin chào! Tôi là trợ lý pháp lý AI của ViLaw. Tôi có thể giúp bạn tìm hiểu về pháp luật Việt Nam, soạn thảo văn bản pháp lý, và trả lời các câu hỏi liên quan đến quyền lợi của bạn. Bạn có thể hỏi tôi bất cứ điều gì!",
+      timestamp: new Date(),
+    },
+  ]);
+  const [inputValue, setInputValue] = useState("");
+  const [isTyping, setIsTyping] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [queryCount, setQueryCount] = useState(0);
+  const [userLevel, setUserLevel] = useState<"normal" | "pro" | "admin">(
+    "normal"
+  );
+  const [isLimitReached, setIsLimitReached] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Kiểm tra đăng nhập và redirect nếu chưa đăng nhập
   useEffect(() => {
     if (!loading && !user) {
-      const currentPath = window.location.pathname
-      router.push(`/supabase-login?redirect=${encodeURIComponent(currentPath)}`)
-      toast.error('Vui lòng đăng nhập để sử dụng Chat AI')
+      const currentPath = window.location.pathname;
+      router.push(
+        `/supabase-login?redirect=${encodeURIComponent(currentPath)}`
+      );
+      toast.error("Vui lòng đăng nhập để sử dụng Chat AI");
     }
-  }, [user, loading, router])
+  }, [user, loading, router]);
 
   // Lấy user level khi user đăng nhập
   useEffect(() => {
     if (user) {
-      const level = getUserLevel(user.email)
-      setUserLevel(level)
+      const level = getUserLevel(user.email);
+      setUserLevel(level);
     }
-  }, [user])
+  }, [user]);
 
   // Kiểm tra giới hạn
-  const checkLimitReached = (count: number, level: 'normal' | 'pro' | 'admin') => {
-    const limit = QUERY_LIMITS[level]
+  const checkLimitReached = (
+    count: number,
+    level: "normal" | "pro" | "admin"
+  ) => {
+    const limit = QUERY_LIMITS[level];
     if (limit !== Infinity && count >= limit) {
-      setIsLimitReached(true)
-      return true
+      setIsLimitReached(true);
+      return true;
     }
-    setIsLimitReached(false)
-    return false
-  }
+    setIsLimitReached(false);
+    return false;
+  };
 
   // Lưu lịch sử chat vào localStorage
   const saveChatHistory = (userId: string, chatMessages: Message[]) => {
     try {
-      const historyKey = getChatHistoryKey(userId)
+      const historyKey = getChatHistoryKey(userId);
       // Chuyển đổi Date thành string để lưu
-      const serializableMessages = chatMessages.map(msg => ({
+      // Normalize content so any literal "\\n" sequences become real newlines
+      const serializableMessages = chatMessages.map((msg) => ({
         ...msg,
-        timestamp: msg.timestamp.toISOString()
-      }))
-      localStorage.setItem(historyKey, JSON.stringify(serializableMessages))
+        content:
+          typeof msg.content === "string"
+            ? msg.content.replace(/\\\\n/g, "\\n")
+            : msg.content,
+        timestamp: msg.timestamp.toISOString(),
+      }));
+      localStorage.setItem(historyKey, JSON.stringify(serializableMessages));
     } catch (error) {
-      console.error('Error saving chat history:', error)
+      console.error("Error saving chat history:", error);
     }
-  }
+  };
 
   // Lưu số lượng câu hỏi
   const saveQueryCount = (userId: string, count: number) => {
     try {
-      const countKey = getQueryCountKey(userId)
-      localStorage.setItem(countKey, count.toString())
+      const countKey = getQueryCountKey(userId);
+      localStorage.setItem(countKey, count.toString());
     } catch (error) {
-      console.error('Error saving query count:', error)
+      console.error("Error saving query count:", error);
     }
-  }
+  };
 
   // Tải lịch sử chat và số lượng câu hỏi khi user đăng nhập
   useEffect(() => {
     if (user && !loading) {
-      const userId = user.id
-      const historyKey = getChatHistoryKey(userId)
-      const countKey = getQueryCountKey(userId)
+      const userId = user.id;
+      const historyKey = getChatHistoryKey(userId);
+      const countKey = getQueryCountKey(userId);
 
       // Tải lịch sử chat
       try {
-        const savedHistory = localStorage.getItem(historyKey)
+        const savedHistory = localStorage.getItem(historyKey);
         if (savedHistory) {
-          const parsedHistory = JSON.parse(savedHistory)
+          const parsedHistory = JSON.parse(savedHistory);
           // Chuyển đổi timestamp từ string sang Date
           const restoredMessages = parsedHistory.map((msg: any) => ({
             ...msg,
-            timestamp: new Date(msg.timestamp)
-          }))
+            // If content contains escaped newline sequences (\\n), convert to real newlines
+            content:
+              typeof msg.content === "string"
+                ? msg.content.replace(/\\n/g, "\n")
+                : msg.content,
+            timestamp: new Date(msg.timestamp),
+          }));
           // Chỉ set messages nếu có lịch sử hợp lệ và không rỗng
           if (restoredMessages.length > 0) {
-            setMessages(restoredMessages)
-            toast.success('Đã tải lịch sử chat')
+            setMessages(restoredMessages);
+            toast.success("Đã tải lịch sử chat");
           }
         }
       } catch (error) {
-        console.error('Error loading chat history:', error)
+        console.error("Error loading chat history:", error);
       }
 
       // Tải số lượng câu hỏi đã sử dụng
@@ -277,24 +301,45 @@ export default function ChatPage() {
       //   console.error('Error loading query count:', error)
       // }
     }
-  }, [user, loading])
+  }, [user, loading]);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  // Sanitize message content for display: convert escaped newlines, remove asterisks and HASH/TIMESTAMP footer
+  const sanitizeContent = (raw?: string) => {
+    if (typeof raw !== "string") return raw;
+    let t = raw.replace(/\\r\\n/g, "\\n").replace(/\\r/g, "\\n");
+    // Convert literal escaped sequences to real characters
+    t = t.replace(/\\n/g, "\n").replace(/\\r/g, "\r");
+    // Remove token markers like <|file_separator|>, <|im_end|>, etc.
+    t = t.replace(/<\|[\s\S]*?\|>/g, "");
+    // Remove any bracketed HASH... TIMESTAMP footer (non-greedy)
+    t = t.replace(/\[[\s\S]*?HASH:[\s\S]*?\]/g, "");
+    // Remove asterisks used as markdown list markers but keep emphasis if desired
+    t = t.replace(/\*+/g, "");
+    // Fix stray punctuation sequences like ", ." -> "."
+    t = t.replace(/,\s*\./g, ".");
+    // Collapse multiple blank lines
+    t = t.replace(/\n{3,}/g, "\n\n");
+    // Collapse multiple spaces/tabs
+    t = t.replace(/[ \t]{2,}/g, " ");
+    return t.trim();
+  };
 
   useEffect(() => {
-    scrollToBottom()
-  }, [messages])
+    scrollToBottom();
+  }, [messages]);
 
   const handleSendMessage = async (content: string) => {
-    if (!content.trim()) return
+    if (!content.trim()) return;
 
     // Kiểm tra đăng nhập
     if (!user) {
-      toast.error('Vui lòng đăng nhập để sử dụng Chat AI')
-      router.push(`/supabase-login?redirect=${encodeURIComponent('/chat')}`)
-      return
+      toast.error("Vui lòng đăng nhập để sử dụng Chat AI");
+      router.push(`/supabase-login?redirect=${encodeURIComponent("/chat")}`);
+      return;
     }
 
     // Kiểm tra giới hạn số câu hỏi
@@ -306,176 +351,221 @@ export default function ChatPage() {
     // }
 
     const getFallbackReply = () =>
-      'Hiện tại không thể gọi AI. ' +
-      'Chúng tôi sẽ phản hồi sớm nhất khi hệ thống ổn định.'
+      "Hiện tại không thể gọi AI. " +
+      "Chúng tôi sẽ phản hồi sớm nhất khi hệ thống ổn định.";
 
     const safeGenerateAIResponse = async (userInput: string) => {
       try {
-        return await generateAIResponse(userInput)
+        return await generateAIResponse(userInput);
       } catch (err: any) {
-        console.error('AI fallback error:', err)
-        toast.error('AI tạm thời không phản hồi, dùng câu trả lời mẫu')
-        return getFallbackReply()
+        console.error("AI fallback error:", err);
+        toast.error("AI tạm thời không phản hồi, dùng câu trả lời mẫu");
+        return getFallbackReply();
       }
-    }
+    };
 
     const userMessage: Message = {
       id: Date.now().toString(),
-      type: 'user',
+      type: "user",
       content: content.trim(),
-      timestamp: new Date()
-    }
+      timestamp: new Date(),
+    };
 
-    const updatedMessages = [...messages, userMessage]
-    setMessages(updatedMessages)
-    setInputValue('')
-    setIsTyping(true)
+    const updatedMessages = [...messages, userMessage];
+    setMessages(updatedMessages);
+    setInputValue("");
+    setIsTyping(true);
 
     // Tăng số lượng câu hỏi và lưu
-    const newQueryCount = queryCount + 1
-    setQueryCount(newQueryCount)
-    saveQueryCount(user.id, newQueryCount)
-    checkLimitReached(newQueryCount, userLevel)
+    const newQueryCount = queryCount + 1;
+    setQueryCount(newQueryCount);
+    saveQueryCount(user.id, newQueryCount);
+    checkLimitReached(newQueryCount, userLevel);
 
     // Tạo tin nhắn AI trước với nội dung rỗng để cập nhật theo streaming
-    const aiMessageId = (Date.now() + 1).toString()
+    const aiMessageId = (Date.now() + 1).toString();
     const initialAiResponse: Message = {
       id: aiMessageId,
-      type: 'ai',
-      content: '',
-      timestamp: new Date()
-    }
-    const messagesWithAi = [...updatedMessages, initialAiResponse]
-    setMessages(messagesWithAi)
+      type: "ai",
+      content: "",
+      timestamp: new Date(),
+    };
+    const messagesWithAi = [...updatedMessages, initialAiResponse];
+    setMessages(messagesWithAi);
+    // Flag để ngăn race condition: nếu streaming callback đến trước khi state được flush,
+    // ta vẫn biết rằng ai message đã được tạo (scheduled) và không thêm bản sao nữa.
+    let aiMessageScheduled = true;
 
     try {
-      const anyWindow = window as any
-      let aiText = ''
-      
+      const anyWindow = window as any;
+      let aiText = "";
+
       // Thử dùng apiService nếu có
       if (anyWindow?.apiService?.chatWithAI) {
         try {
-          const aiRes = await anyWindow.apiService.chatWithAI(content, 'vi')
-          aiText = aiRes?.response || ''
+          const aiRes = await anyWindow.apiService.chatWithAI(content, "vi");
+          aiText = aiRes?.response || "";
         } catch (e) {
-          console.log('apiService failed, using streaming API')
+          console.log("apiService failed, using streaming API");
         }
       }
-      
+
       // Nếu không có apiService hoặc không có kết quả, dùng streaming API
       if (!aiText) {
         // Sử dụng streaming với callback để cập nhật UI theo thời gian thực
         const updateMessageContent = (newContent: string) => {
-          setMessages(prevMessages => {
-            const messageExists = prevMessages.some(msg => msg.id === aiMessageId)
+          setMessages((prevMessages) => {
+            const messageExists = prevMessages.some(
+              (msg) => msg.id === aiMessageId
+            );
             if (!messageExists) {
-              // Nếu tin nhắn chưa tồn tại, thêm mới
-              return [...prevMessages, {
-                id: aiMessageId,
-                type: 'ai' as const,
-                content: newContent,
-                timestamp: new Date()
-              }]
+              // Nếu tin nhắn chưa tồn tại và chưa được scheduled (fallback), thêm mới
+              if (!aiMessageScheduled) {
+                aiMessageScheduled = true;
+                return [
+                  ...prevMessages,
+                  {
+                    id: aiMessageId,
+                    type: "ai" as const,
+                    content: newContent,
+                    timestamp: new Date(),
+                  },
+                ];
+              }
+              // Nếu đã scheduled, tránh thêm duplicate; map will add nothing
+              return prevMessages;
             }
             // Cập nhật tin nhắn hiện có
-            return prevMessages.map(msg => 
-              msg.id === aiMessageId 
-                ? { ...msg, content: newContent }
-                : msg
-            )
-          })
-        }
+            return prevMessages.map((msg) =>
+              msg.id === aiMessageId ? { ...msg, content: newContent } : msg
+            );
+          });
+        };
 
-        let accumulatedContent = ''
+        let accumulatedContent = "";
         aiText = await generateAIResponse(
           content,
           (chunk: string) => {
-            console.log('Received chunk:', chunk)
-            accumulatedContent += chunk
-            console.log('Accumulated content:', accumulatedContent)
-            updateMessageContent(accumulatedContent)
+            // Normalize newline characters
+            const normalizedChunk = chunk
+              .replace(/\r\n/g, "\n")
+              .replace(/\r/g, "\n");
+            console.log(
+              "Received chunk (repr):",
+              JSON.stringify(normalizedChunk)
+            );
+
+            if (!accumulatedContent) {
+              accumulatedContent = normalizedChunk;
+            } else if (normalizedChunk.includes(accumulatedContent)) {
+              // Server sent the whole text again -> replace to avoid duplication
+              accumulatedContent = normalizedChunk;
+            } else {
+              // Ensure there's a newline between previous content and new chunk if needed
+              if (
+                !accumulatedContent.endsWith("\n") &&
+                !normalizedChunk.startsWith("\n")
+              ) {
+                accumulatedContent += "\n" + normalizedChunk;
+              } else {
+                accumulatedContent += normalizedChunk;
+              }
+            }
+
+            console.log(
+              "Accumulated content (repr):",
+              JSON.stringify(accumulatedContent)
+            );
+            updateMessageContent(accumulatedContent);
           },
           user.id, // Sử dụng user.id làm conversation_id
           {} // extraHeaders nếu cần
-        )
-        
-        console.log('Final AI response:', aiText)
-        
-        // Đảm bảo cập nhật lần cuối với toàn bộ nội dung
-        if (aiText) {
-          updateMessageContent(aiText)
+        );
+
+        console.log("Final AI response:", aiText);
+
+        // Prefer the streamed accumulated content (kept during onChunk) because
+        // some backends return a final payload without original newlines.
+        const finalText =
+          accumulatedContent && accumulatedContent.trim()
+            ? accumulatedContent
+            : aiText;
+        if (finalText) {
+          updateMessageContent(finalText);
         }
       } else {
         // Nếu dùng apiService, cập nhật tin nhắn với nội dung đầy đủ
-        setMessages(prevMessages => 
-          prevMessages.map(msg => 
-            msg.id === aiMessageId 
-              ? { ...msg, content: aiText }
-              : msg
+        setMessages((prevMessages) =>
+          prevMessages.map((msg) =>
+            msg.id === aiMessageId ? { ...msg, content: aiText } : msg
           )
-        )
+        );
       }
-      
+
       // Lấy messages hiện tại để lưu
-      setMessages(prevMessages => {
-        const finalMessages = prevMessages.map(msg => 
-          msg.id === aiMessageId 
-            ? { ...msg, content: aiText || msg.content }
+      setMessages((prevMessages) => {
+        const finalMessages = prevMessages.map((msg) =>
+          msg.id === aiMessageId
+            ? {
+                ...msg,
+                // If aiText lacks newlines, prefer the already-streamed msg.content (preserves formatting)
+                content:
+                  aiText && typeof aiText === "string" && aiText.includes("\n")
+                    ? aiText
+                    : msg.content,
+              }
             : msg
-        )
+        );
         // Lưu lịch sử chat sau khi có phản hồi AI
-        saveChatHistory(user.id, finalMessages)
-        return finalMessages
-      })
+        saveChatHistory(user.id, finalMessages);
+        return finalMessages;
+      });
     } catch (e) {
-      console.error('AI error:', e)
-      toast.error('Không thể gọi AI hiện tại, dùng phản hồi mẫu')
-      
+      console.error("AI error:", e);
+      toast.error("Không thể gọi AI hiện tại, dùng phản hồi mẫu");
+
       // Fallback: dùng safeGenerateAIResponse (không streaming)
       try {
-        const fallbackText = await safeGenerateAIResponse(content)
-        setMessages(prevMessages => {
-          const finalMessages = prevMessages.map(msg => 
-            msg.id === aiMessageId 
-              ? { ...msg, content: fallbackText }
-              : msg
-          )
-          saveChatHistory(user.id, finalMessages)
-          return finalMessages
-        })
+        const fallbackText = await safeGenerateAIResponse(content);
+        setMessages((prevMessages) => {
+          const finalMessages = prevMessages.map((msg) =>
+            msg.id === aiMessageId ? { ...msg, content: fallbackText } : msg
+          );
+          saveChatHistory(user.id, finalMessages);
+          return finalMessages;
+        });
       } catch (fallbackError) {
         // Nếu fallback cũng lỗi, hiển thị thông báo lỗi
-        const errorMessage = 'Xin lỗi, không thể kết nối với AI. Vui lòng thử lại sau.'
-        setMessages(prevMessages => {
-          const finalMessages = prevMessages.map(msg => 
-            msg.id === aiMessageId 
-              ? { ...msg, content: errorMessage }
-              : msg
-          )
-          saveChatHistory(user.id, finalMessages)
-          return finalMessages
-        })
+        const errorMessage =
+          "Xin lỗi, không thể kết nối với AI. Vui lòng thử lại sau.";
+        setMessages((prevMessages) => {
+          const finalMessages = prevMessages.map((msg) =>
+            msg.id === aiMessageId ? { ...msg, content: errorMessage } : msg
+          );
+          saveChatHistory(user.id, finalMessages);
+          return finalMessages;
+        });
       }
     } finally {
-      setIsTyping(false)
+      setIsTyping(false);
     }
-  }
+  };
 
   type WebhookPayload = {
     message: string;
     section_id: string;
   };
-  
+
   type WebhookOK = { output?: string; [k: string]: unknown };
   type WebhookErr = { error?: string; [k: string]: unknown };
-  
+
   interface SendResult {
     id: number;
     question: string;
     response?: WebhookOK | WebhookErr;
     error?: string;
   }
-  
+
   const generateAIResponse = async (
     userInput: string,
     onChunk?: (chunk: string) => void,
@@ -484,7 +574,7 @@ export default function ChatPage() {
   ): Promise<string> => {
     const url = "https://vilawchatbot.onrender.com/api/v1/chat/stream";
     const controller = new AbortController();
-    
+
     let fullResponse = "";
 
     try {
@@ -492,13 +582,13 @@ export default function ChatPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...extraHeaders
+          ...extraHeaders,
         },
-        body: JSON.stringify({ 
-          message: userInput?.trim() || "Nội dung câu hỏi trống", 
-          conversation_id: conversationId 
+        body: JSON.stringify({
+          message: userInput?.trim() || "Nội dung câu hỏi trống",
+          conversation_id: conversationId,
         }),
-        signal: controller.signal
+        signal: controller.signal,
       });
 
       if (!res.ok) {
@@ -516,141 +606,153 @@ export default function ChatPage() {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        
+
         const chunk = decoder.decode(value, { stream: true });
         buf += chunk;
-        
-        // Xử lý cả format SSE (data: ...) và plain text
-        // Tách theo \n\n (SSE format) hoặc \n (plain text)
-        const parts = buf.split("\n\n");
-        buf = parts.pop() || "";
 
-        for (const part of parts) {
-          if (!part.trim()) continue;
-          
-          // Tìm dòng có chứa "data:"
-          const lines = part.split("\n");
-          for (const line of lines) {
-            if (!line.trim()) continue;
-            
-            let payload = "";
-            
-            // Kiểm tra format SSE (data: ...)
-            if (line.startsWith("data:")) {
-              payload = line.replace(/^data:\s*/, "").trim();
-            } else if (line.trim() && !line.startsWith(":")) {
-              // Nếu không phải format SSE và không phải comment, dùng trực tiếp
-              payload = line.trim();
-            }
-            
-            if (!payload) continue;
-            
-            // Thử parse JSON nếu payload là JSON string
-            let textToAdd = payload;
-            try {
-              const parsed = JSON.parse(payload);
-              // Nếu là object có text, message, content, hoặc response, lấy giá trị đó
-              if (typeof parsed === 'object' && parsed !== null) {
-                textToAdd = parsed.text || parsed.message || parsed.content || parsed.response || parsed.data || JSON.stringify(parsed);
-              } else if (typeof parsed === 'string') {
-                textToAdd = parsed;
-              }
-            } catch {
-              // Không phải JSON, dùng trực tiếp
-              textToAdd = payload;
-            }
-            
-            if (textToAdd) {
-              fullResponse += textToAdd;
-              
-              // Gọi callback nếu có để cập nhật UI theo thời gian thực
-              if (onChunk) {
-                onChunk(textToAdd);
-              }
-            }
-          }
-        }
-      }
-
-      // Xử lý phần còn lại trong buffer
-      if (buf.trim()) {
+        // Xử lý giống `iter_lines` trong test script: tách theo dòng, giữ lại phần chưa đầy đủ
         const lines = buf.split("\n");
-        for (const line of lines) {
-          if (!line.trim() || line.startsWith(":")) continue;
-          
+        // Lưu phần cuối cùng (có thể là partial line) để ghép với chunk tiếp theo
+        buf = lines.pop() || "";
+
+        for (const rawLine of lines) {
+          // Preserve original leading spaces to keep markdown/list formatting
+          const raw = rawLine.replace(/\r$/, "");
+          if (!raw.trim()) continue;
+          if (raw.startsWith(":")) continue; // SSE comment
+
           let payload = "";
-          if (line.startsWith("data:")) {
-            payload = line.replace(/^data:\s*/, "").trim();
+          if (raw.startsWith("data:")) {
+            // Keep payload as-is (don't trim) to preserve indentation/newlines
+            payload = raw.replace(/^data:\s*/, "");
           } else {
-            payload = line.trim();
+            // plain text line (non-SSE)
+            payload = raw;
           }
-          
+
           if (!payload) continue;
-          
+
           let textToAdd = payload;
           try {
             const parsed = JSON.parse(payload);
-            if (typeof parsed === 'object' && parsed !== null) {
-              textToAdd = parsed.text || parsed.message || parsed.content || parsed.response || parsed.data || JSON.stringify(parsed);
-            } else if (typeof parsed === 'string') {
+            if (typeof parsed === "object" && parsed !== null) {
+              // ưu tiên trường `text` giống test script
+              textToAdd =
+                parsed.text ??
+                parsed.message ??
+                parsed.content ??
+                parsed.response ??
+                parsed.data ??
+                JSON.stringify(parsed);
+            } else if (typeof parsed === "string") {
               textToAdd = parsed;
             }
           } catch {
             textToAdd = payload;
           }
-          
+
+          if (typeof textToAdd === "string") {
+            // Convert escaped sequences ("\\n", "\\r", "\\t") to real characters
+            textToAdd = textToAdd
+              .replace(/\\r/g, "\r")
+              .replace(/\\n/g, "\n")
+              .replace(/\\t/g, "\t");
+          }
+
           if (textToAdd) {
-            fullResponse += textToAdd;
-            if (onChunk) {
-              onChunk(textToAdd);
+            // Maintain newline behavior for SSE `data:` events but preserve original spacing
+            const appended = raw.startsWith("data:")
+              ? textToAdd + "\n"
+              : textToAdd;
+            fullResponse += appended;
+            if (onChunk) onChunk(appended);
+          }
+        }
+      }
+
+      // Xử lý phần còn lại trong buffer (dòng cuối cùng)
+      if (buf.trim()) {
+        const raw = buf.replace(/\r$/, "");
+        if (raw && !raw.startsWith(":")) {
+          const payload = raw.startsWith("data:")
+            ? raw.replace(/^data:\s*/, "")
+            : raw;
+          let textToAdd = payload;
+          try {
+            const parsed = JSON.parse(payload);
+            if (typeof parsed === "object" && parsed !== null) {
+              textToAdd =
+                parsed.text ??
+                parsed.message ??
+                parsed.content ??
+                parsed.response ??
+                parsed.data ??
+                JSON.stringify(parsed);
+            } else if (typeof parsed === "string") {
+              textToAdd = parsed;
             }
+          } catch {
+            textToAdd = payload;
+          }
+          if (typeof textToAdd === "string") {
+            textToAdd = textToAdd
+              .replace(/\\r/g, "\r")
+              .replace(/\\n/g, "\n")
+              .replace(/\\t/g, "\t");
+          }
+          if (textToAdd) {
+            const appended = raw.startsWith("data:")
+              ? textToAdd + "\n"
+              : textToAdd;
+            fullResponse += appended;
+            if (onChunk) onChunk(appended);
           }
         }
       }
 
       return fullResponse;
     } catch (err: any) {
-      console.error('Stream error details:', err);
-      if (err.name === 'AbortError') {
+      console.error("Stream error details:", err);
+      if (err.name === "AbortError") {
         throw new Error("Request was aborted");
       }
       throw new Error(`Stream error: ${err?.message ?? String(err)}`);
     }
   };
-  
 
   const handleSuggestionClick = (suggestion: Suggestion) => {
-    handleSendMessage(suggestion.text)
-  }
+    handleSendMessage(suggestion.text);
+  };
 
-  const filteredSuggestions = selectedCategory === 'all'
-    ? suggestions
-    : suggestions.filter(s => s.category === selectedCategory)
+  const filteredSuggestions =
+    selectedCategory === "all"
+      ? suggestions
+      : suggestions.filter((s) => s.category === selectedCategory);
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSendMessage(inputValue)
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage(inputValue);
     }
-  }
+  };
 
   const handleCopyMessage = (content: string) => {
-    navigator.clipboard.writeText(content)
-    toast.success('Đã sao chép tin nhắn')
-  }
+    navigator.clipboard.writeText(content);
+    toast.success("Đã sao chép tin nhắn");
+  };
 
   const handleShareMessage = (content: string) => {
     if (navigator.share) {
       navigator.share({
-        title: 'ViLaw Chat',
+        title: "ViLaw Chat",
         text: content,
-        url: window.location.href
-      })
+        url: window.location.href,
+      });
     } else {
-      navigator.clipboard.writeText(content)
-      toast.success('Đã sao chép để chia sẻ')
+      navigator.clipboard.writeText(content);
+      toast.success("Đã sao chép để chia sẻ");
     }
-  }
+  };
 
   // Hiển thị loading khi đang kiểm tra đăng nhập
   if (loading) {
@@ -661,16 +763,17 @@ export default function ChatPage() {
           <p className="text-gray-600">Đang kiểm tra đăng nhập...</p>
         </div>
       </div>
-    )
+    );
   }
 
   // Không hiển thị nội dung nếu chưa đăng nhập (sẽ redirect)
   if (!user) {
-    return null
+    return null;
   }
 
-  const limit = QUERY_LIMITS[userLevel]
-  const remainingQueries = limit === Infinity ? '∞' : Math.max(0, limit - queryCount)
+  const limit = QUERY_LIMITS[userLevel];
+  const remainingQueries =
+    limit === Infinity ? "∞" : Math.max(0, limit - queryCount);
 
   return (
     <div className="min-h-screen theme-bg">
@@ -682,31 +785,49 @@ export default function ChatPage() {
               <ArrowRight className="w-5 h-5 rotate-180" />
             </Link>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Chat AI Pháp lý</h1>
-              <p className="text-sm text-gray-500">Trợ lý AI 24/7 cho câu hỏi pháp lý</p>
+              <h1 className="text-2xl font-bold text-gray-900">
+                Chat AI Pháp lý
+              </h1>
+              <p className="text-sm text-gray-500">
+                Trợ lý AI 24/7 cho câu hỏi pháp lý
+              </p>
             </div>
           </div>
 
           <div className="flex items-center space-x-4">
             {/* Hiển thị số câu hỏi còn lại */}
             <div className="flex items-center space-x-2 px-3 py-1.5 bg-blue-50 rounded-lg border border-blue-200">
-              {userLevel === 'pro' && <Crown className="w-4 h-4 text-yellow-600" />}
-              {userLevel === 'admin' && <Award className="w-4 h-4 text-red-600" />}
+              {userLevel === "pro" && (
+                <Crown className="w-4 h-4 text-yellow-600" />
+              )}
+              {userLevel === "admin" && (
+                <Award className="w-4 h-4 text-red-600" />
+              )}
               <span className="text-sm font-medium text-gray-700">
                 {isLimitReached ? (
                   <span className="text-red-600">Đã hết lượt</span>
                 ) : (
-                  <span>Còn lại: <strong>{remainingQueries}</strong> câu hỏi</span>
+                  <span>
+                    Còn lại: <strong>{remainingQueries}</strong> câu hỏi
+                  </span>
                 )}
               </span>
             </div>
 
             <button
               onClick={() => setIsMuted(!isMuted)}
-              className={`p-2 rounded-lg ${isMuted ? 'bg-red-100 text-red-600' : 'text-gray-600 hover:bg-gray-100'}`}
-              title={isMuted ? 'Bật âm thanh' : 'Tắt âm thanh'}
+              className={`p-2 rounded-lg ${
+                isMuted
+                  ? "bg-red-100 text-red-600"
+                  : "text-gray-600 hover:bg-gray-100"
+              }`}
+              title={isMuted ? "Bật âm thanh" : "Tắt âm thanh"}
             >
-              {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+              {isMuted ? (
+                <VolumeX className="w-4 h-4" />
+              ) : (
+                <Volume2 className="w-4 h-4" />
+              )}
             </button>
             <button
               className="p-2 rounded-lg text-gray-600 hover:bg-gray-100"
@@ -729,8 +850,12 @@ export default function ChatPage() {
             <div className="flex items-center space-x-3">
               <AlertCircle className="w-5 h-5 text-yellow-600" />
               <div>
-                <p className="font-medium text-gray-900">Bạn đã đạt giới hạn {limit} câu hỏi cho gói {userLevel}</p>
-                <p className="text-sm text-gray-600">Nâng cấp lên Pro để được {QUERY_LIMITS.pro} câu hỏi/tháng</p>
+                <p className="font-medium text-gray-900">
+                  Bạn đã đạt giới hạn {limit} câu hỏi cho gói {userLevel}
+                </p>
+                <p className="text-sm text-gray-600">
+                  Nâng cấp lên Pro để được {QUERY_LIMITS.pro} câu hỏi/tháng
+                </p>
               </div>
             </div>
             <Link
@@ -758,41 +883,66 @@ export default function ChatPage() {
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.1 }}
-                      className={`mb-6 ${message.type === 'user' ? 'text-right' : 'text-left'}`}
+                      className={`mb-6 ${
+                        message.type === "user" ? "text-right" : "text-left"
+                      }`}
                     >
-                      <div className={`inline-flex items-start space-x-3 max-w-[80%] ${message.type === 'user' ? 'ml-auto' : ''}`}>
-                        {message.type === 'ai' && (
+                      <div
+                        className={`inline-flex items-start space-x-3 max-w-[80%] ${
+                          message.type === "user" ? "ml-auto" : ""
+                        }`}
+                      >
+                        {message.type === "ai" && (
                           <div className="w-8 h-8 bg-primary-600 rounded-full flex items-center justify-center flex-shrink-0">
                             <Bot className="w-4 h-4 text-white" />
                           </div>
                         )}
 
-                        <div className={`rounded-2xl px-4 py-3 ${message.type === 'user'
-                            ? 'bg-primary-600 text-white'
-                            : 'bg-gray-100 text-gray-900'
-                          }`}>
+                        <div
+                          className={`rounded-2xl px-4 py-3 ${
+                            message.type === "user"
+                              ? "bg-primary-600 text-white"
+                              : "bg-gray-100 text-gray-900"
+                          }`}
+                        >
                           <div className="whitespace-pre-wrap">
-                            {message.content || (message.type === 'ai' && isTyping ? (
-                              <span className="text-gray-400 italic">Đang soạn thảo...</span>
-                            ) : '')}
+                            {message.content ? (
+                              typeof message.content === "string" ? (
+                                // Sanitize and display
+                                sanitizeContent(message.content)
+                              ) : (
+                                message.content
+                              )
+                            ) : message.type === "ai" && isTyping ? (
+                              <span className="text-gray-400 italic">
+                                Đang soạn thảo...
+                              </span>
+                            ) : (
+                              ""
+                            )}
                           </div>
-                          <div className={`text-xs mt-2 ${message.type === 'user' ? 'text-primary-100' : 'text-gray-500'
-                            }`}>
-                            {message.timestamp.toLocaleTimeString('vi-VN', {
-                              hour: '2-digit',
-                              minute: '2-digit'
+                          <div
+                            className={`text-xs mt-2 ${
+                              message.type === "user"
+                                ? "text-primary-100"
+                                : "text-gray-500"
+                            }`}
+                          >
+                            {message.timestamp.toLocaleTimeString("vi-VN", {
+                              hour: "2-digit",
+                              minute: "2-digit",
                             })}
                           </div>
                         </div>
 
-                        {message.type === 'user' && (
+                        {message.type === "user" && (
                           <div className="w-8 h-8 bg-gray-600 rounded-full flex items-center justify-center flex-shrink-0">
                             <User className="w-4 h-4 text-white" />
                           </div>
                         )}
                       </div>
 
-                      {message.type === 'ai' && (
+                      {message.type === "ai" && (
                         <div className="flex items-center space-x-2 mt-2 ml-11">
                           <button
                             onClick={() => handleCopyMessage(message.content)}
@@ -842,7 +992,8 @@ export default function ChatPage() {
                   <div className="mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg flex items-center space-x-2">
                     <Lock className="w-4 h-4 text-yellow-600" />
                     <p className="text-sm text-yellow-800">
-                      Bạn đã đạt giới hạn. Vui lòng nâng cấp để tiếp tục sử dụng.
+                      Bạn đã đạt giới hạn. Vui lòng nâng cấp để tiếp tục sử
+                      dụng.
                     </p>
                   </div>
                 )}
@@ -854,10 +1005,14 @@ export default function ChatPage() {
                       value={inputValue}
                       onChange={(e) => setInputValue(e.target.value)}
                       onKeyPress={handleKeyPress}
-                      placeholder={isLimitReached ? "Đã đạt giới hạn - Vui lòng nâng cấp" : "Nhập câu hỏi pháp lý của bạn..."}
+                      placeholder={
+                        isLimitReached
+                          ? "Đã đạt giới hạn - Vui lòng nâng cấp"
+                          : "Nhập câu hỏi pháp lý của bạn..."
+                      }
                       disabled={isLimitReached}
                       className={`w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent ${
-                        isLimitReached ? 'bg-gray-100 cursor-not-allowed' : ''
+                        isLimitReached ? "bg-gray-100 cursor-not-allowed" : ""
                       }`}
                     />
                   </div>
@@ -866,15 +1021,19 @@ export default function ChatPage() {
                     onClick={() => setIsRecording(!isRecording)}
                     disabled={isLimitReached}
                     className={`p-3 rounded-lg ${
-                      isLimitReached 
-                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
-                        : isRecording 
-                          ? 'bg-red-500 text-white' 
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      isLimitReached
+                        ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                        : isRecording
+                        ? "bg-red-500 text-white"
+                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                     }`}
-                    title={isRecording ? 'Dừng ghi âm' : 'Ghi âm'}
+                    title={isRecording ? "Dừng ghi âm" : "Ghi âm"}
                   >
-                    {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                    {isRecording ? (
+                      <MicOff className="w-5 h-5" />
+                    ) : (
+                      <Mic className="w-5 h-5" />
+                    )}
                   </button>
 
                   <button
@@ -893,7 +1052,9 @@ export default function ChatPage() {
           {/* Suggestions Sidebar */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Gợi ý câu hỏi</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                Gợi ý câu hỏi
+              </h3>
 
               {/* Category Filter */}
               <div className="mb-4">
@@ -904,8 +1065,10 @@ export default function ChatPage() {
                   aria-label="Lọc theo danh mục"
                 >
                   <option value="all">Tất cả danh mục</option>
-                  {categories.map(cat => (
-                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -922,7 +1085,9 @@ export default function ChatPage() {
                   >
                     <div className="flex items-center space-x-2 mb-2">
                       <div className="text-primary-600">{suggestion.icon}</div>
-                      <span className="text-sm font-medium text-gray-900">{suggestion.text}</span>
+                      <span className="text-sm font-medium text-gray-900">
+                        {suggestion.text}
+                      </span>
                     </div>
                   </motion.button>
                 ))}
@@ -932,5 +1097,5 @@ export default function ChatPage() {
         </div>
       </div>
     </div>
-  )
-} 
+  );
+}

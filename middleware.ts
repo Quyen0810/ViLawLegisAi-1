@@ -5,11 +5,20 @@ import { createServerClient } from '@supabase/ssr'
 
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
+  // Guard: ensure required Supabase env vars are available in this runtime.
+  const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    // Log explicit message to help debugging (won't expose secrets)
+    console.error('Missing Supabase env vars: NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY not set for middleware runtime')
+    // Return next response without initializing Supabase to avoid throwing an exception
+    return res
+  }
+
+  let supabase
+  try {
+    supabase = createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       cookies: {
         get(name: string) {
           return req.cookies.get(name)?.value
@@ -30,8 +39,11 @@ export async function middleware(req: NextRequest) {
           })
         },
       },
-    }
-  )
+    })
+  } catch (err) {
+    console.error('Failed to create Supabase server client in middleware:', err)
+    return res
+  }
 
   // Refresh session nếu có để đảm bảo session được cập nhật
   const { data: { user } } = await supabase.auth.getUser()
