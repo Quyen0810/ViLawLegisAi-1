@@ -11,13 +11,15 @@
     "export": "next build && next export"
   },
   "dependencies": {
-    "@supabase/auth-helpers-nextjs": "^0.10.0",
-    "@supabase/ssr": "^0.7.0",
-    "@supabase/supabase-js": "^2.75.0",
+    "@ant-design/icons": "5.4.0",
+    "@chakra-ui/react": "^2.8.2",
+    "@emotion/react": "^11.11.1",
+    "@emotion/styled": "^11.11.0",
     "@types/node": "^20.0.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "@types/react-syntax-highlighter": "^15.5.0",
+    "antd": "^5.21.0",
     "autoprefixer": "^10.4.0",
     "axios": "^1.6.0",
     "bcryptjs": "^3.0.2",
@@ -29,7 +31,9 @@
     "framer-motion": "^10.16.0",
     "lucide-react": "^0.292.0",
     "next": "^15.4.5",
+    "next-auth": "^5.0.0-beta.30",
     "postcss": "^8.4.0",
+    "query-string": "^9.3.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.47.0",
@@ -37,11 +41,13 @@
     "react-markdown": "^9.0.0",
     "react-syntax-highlighter": "^15.5.0",
     "tailwindcss": "^3.3.0",
+    "tesseract.js": "^7.0.0",
     "typescript": "^5.0.0",
     "zod": "^4.1.12",
     "zustand": "^4.4.0"
   },
   "devDependencies": {
+    "@types/query-string": "^6.2.0",
     "eslint": "^8.0.0",
     "eslint-config-next": "^15.0.0"
   },

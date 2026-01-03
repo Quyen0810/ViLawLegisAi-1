@@ -1,10 +1,7 @@
 // ViLaw Service Worker
-const CACHE_NAME = 'vilaw-v1.0.0';
+const CACHE_NAME = 'vilaw-next-v1.0.0';
 const urlsToCache = [
   '/',
-  '/index.html',
-  '/styles.css',
-  '/script.js',
   '/manifest.json',
   'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap',
   'https://unpkg.com/lucide@latest/dist/umd/lucide.js'
@@ -85,7 +82,7 @@ self.addEventListener('fetch', (event) => {
         
         // Return offline fallback for HTML requests
         if (event.request.destination === 'document') {
-          return caches.match('/index.html');
+          return caches.match('/');
         }
       })
   );
