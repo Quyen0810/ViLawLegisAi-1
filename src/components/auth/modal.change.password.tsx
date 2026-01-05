@@ -28,8 +28,9 @@ const ModalChangePassword = (props: any) => {
     const onFinishStep0 = async (values: any) => {
         const { email } = values;
         setLoadingStep0(true);
+        const backendUrl = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080').replace(/\/$/, '');
         const res = await sendRequest<IBackendRes<any>>({
-            url: `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/auth/retry-password`,
+            url: `${backendUrl}/api/v1/auth/retry-password`,
             method: "POST",
             body: {
                 email
@@ -57,8 +58,9 @@ const ModalChangePassword = (props: any) => {
             return;
         }
         setLoadingStep1(true);
+        const backendUrl = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080').replace(/\/$/, '');
         const res = await sendRequest<IBackendRes<any>>({
-            url: `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/auth/change-password`,
+            url: `${backendUrl}/api/v1/auth/change-password`,
             method: "POST",
             body: {
                 code, password, confirmPassword, email: userEmail

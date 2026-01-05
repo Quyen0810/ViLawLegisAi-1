@@ -11,6 +11,14 @@ export const sendRequest = async <T>(props: IRequest) => { //type
         nextOption = {}
     } = props;
 
+    // Validate URL
+    if (!url || url.includes('undefined')) {
+        throw new Error('Invalid URL: URL is undefined or contains undefined');
+    }
+
+    // Normalize URL: remove double slashes (except after protocol) and trailing slashes
+    url = url.replace(/([^:]\/)\/+/g, '$1').replace(/\/$/, '');
+
     const options: any = {
         method: method,
         // by default setting the content-type to be json type
@@ -20,7 +28,8 @@ export const sendRequest = async <T>(props: IRequest) => { //type
     };
     if (useCredentials) options.credentials = "include";
 
-    if (queryParams){
+    // Only add query params if queryParams object has keys
+    if (queryParams && Object.keys(queryParams).length > 0) {
         url = `${url}?${queryString.stringify(queryParams)}`;
     }
 
@@ -37,6 +46,15 @@ export const sendRequest = async <T>(props: IRequest) => { //type
                 } as T;
             });
         }
+    }).catch((error) => {
+        // Handle network errors (CORS, connection refused, etc.)
+        console.error('Network error:', error);
+        return {
+            statusCode: 0,
+            message: 'Network error: Unable to connect to server',
+            error: 'Internal server error',
+            code: 0
+        } as T;
     });
 };
 
@@ -51,6 +69,14 @@ export const sendRequestFile = async <T>(props: IRequest) => { //type
         nextOption = {}
     } = props;
 
+    // Validate URL
+    if (!url || url.includes('undefined')) {
+        throw new Error('Invalid URL: URL is undefined or contains undefined');
+    }
+
+    // Normalize URL: remove double slashes (except after protocol) and trailing slashes
+    url = url.replace(/([^:]\/)\/+/g, '$1').replace(/\/$/, '');
+
     const options: any = {
         method: method,
         // by default setting the content-type to be json type
@@ -60,7 +86,8 @@ export const sendRequestFile = async <T>(props: IRequest) => { //type
     };
     if (useCredentials) options.credentials = "include";
 
-    if (queryParams){
+    // Only add query params if queryParams object has keys
+    if (queryParams && Object.keys(queryParams).length > 0) {
         url = `${url}?${queryString.stringify(queryParams)}`;
     }
 
@@ -77,5 +104,14 @@ export const sendRequestFile = async <T>(props: IRequest) => { //type
                 } as T;
             });
         }
+    }).catch((error) => {
+        // Handle network errors (CORS, connection refused, etc.)
+        console.error('Network error:', error);
+        return {
+            statusCode: 0,
+            message: 'Network error: Unable to connect to server',
+            error: 'Internal server error',
+            code: 0
+        } as T;
     });
 };

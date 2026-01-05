@@ -330,7 +330,7 @@ export default function HomePage() {
               </div>
 
               <div className="flex flex-col sm:flex-row gap-4">
-                <Link href="/chat" className="btn-primary inline-flex items-center justify-center">
+                <Link href="https://vilawbot.onrender.com/api/v1/chat/stream" className="btn-primary inline-flex items-center justify-center">
                   <Play className="w-5 h-5 mr-2" />
                   Dùng thử trợ lý AI
                 </Link>
