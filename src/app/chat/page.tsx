@@ -193,6 +193,7 @@ export default function ChatPage() {
     }
   }
 
+
   // Tải lịch sử chat và số lượng câu hỏi khi user đăng nhập
   useEffect(() => {
     if (user && status === 'authenticated' && userId) {
