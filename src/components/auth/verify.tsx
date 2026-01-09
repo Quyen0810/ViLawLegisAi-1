@@ -1,6 +1,6 @@
 'use client'
 
-import { Button, notification, message, Row, Col, Form, Input, Divider, Card, Typography } from "antd";
+import { Button, message, Row, Col, Form, Input, Divider, Card, Typography } from "antd";
 import Link from "next/link";
 import { sendRequest } from "@/utils/api";
 import { useRouter } from "next/navigation";
@@ -26,12 +26,11 @@ const Verify = (props: any) => {
 
     if (res?.data) {
       message.success("Kích hoạt tài khoản thành công.");
-      router.push(`/auth/login`);
+      setTimeout(() => {
+        router.push(`/auth/login`);
+      }, 1000);
     } else {
-      notification.error({
-        message: "Verify error",
-        description: res?.message,
-      });
+      message.error(res?.message || 'Kích hoạt thất bại');
     }
   };
 
@@ -96,9 +95,17 @@ const Verify = (props: any) => {
                 required: true,
                 message: "Vui lòng nhập mã xác thực!",
               },
+              {
+                pattern: /^\d{6}$/,
+                message: "Mã xác thực phải là 6 chữ số!",
+              },
             ]}
           >
-            <Input placeholder="Nhập mã gồm 6 ký tự..." />
+            <Input 
+              placeholder="Nhập mã gồm 6 số..." 
+              maxLength={6}
+              style={{ fontSize: 20, letterSpacing: 4, textAlign: 'center', fontWeight: 'bold' }}
+            />
           </Form.Item>
 
           <Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 16 }}>

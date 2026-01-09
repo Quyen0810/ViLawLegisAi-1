@@ -1,6 +1,7 @@
 'use client'
-import { Button, Card, Col, Form, Input, Row, Typography, Divider, Space, notification } from 'antd';
+import { Button, Card, Col, Form, Input, Row, Typography, Divider, Space } from 'antd';
 import { ArrowLeftOutlined, LockOutlined, MailOutlined, SafetyCertificateOutlined, SmileOutlined } from '@ant-design/icons';
+import toast from 'react-hot-toast';
 import Link from 'next/link';
 import { authenticate } from '@/utils/actions';
 import { useRouter } from 'next/navigation';
@@ -30,14 +31,15 @@ const Login = () => {
                 setUserEmail(username);
                 return;
             }
-            notification.error({
-                message: "Error login",
-                description: res?.error
-            })
+            toast.error(res?.error || 'Đăng nhập thất bại');
 
         } else {
             //redirect to /dashboard
-            router.push('/');
+            toast.success("Đăng nhập thành công");
+            // Use window.location.href to ensure session is reloaded
+            setTimeout(() => {
+                window.location.href = '/';
+            }, 500);
         }
     };
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { useHasMounted } from "@/utils/customHook";
-import { Button, Divider, Form, Input, Modal, notification, Result, Steps, Typography } from "antd";
+import { Button, Divider, Form, Input, Modal, message, Result, Steps, Typography } from "antd";
 import { SmileOutlined, SolutionOutlined, UserOutlined, LockOutlined, MailOutlined, KeyOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import { useState } from "react";
 import { sendRequest } from "@/utils/api";
@@ -28,9 +28,8 @@ const ModalChangePassword = (props: any) => {
     const onFinishStep0 = async (values: any) => {
         const { email } = values;
         setLoadingStep0(true);
-        const backendUrl = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080').replace(/\/$/, '');
         const res = await sendRequest<IBackendRes<any>>({
-            url: `${backendUrl}/api/v1/auth/retry-password`,
+            url: `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/auth/retry-password`,
             method: "POST",
             body: {
                 email
@@ -41,26 +40,19 @@ const ModalChangePassword = (props: any) => {
             setUserEmail(res?.data?.email );
             setCurrent(1);
         } else {
-            notification.error({
-                message: "Lỗi gửi email",
-                description: res?.message || "Không thể gửi email. Vui lòng thử lại sau."
-            })
+            message.error(res?.message || "Không thể gửi email. Vui lòng thử lại sau.");
         }
     }
 
     const onFinishStep1 = async (values: any) => {
         const { code, password, confirmPassword } = values;
         if (password !== confirmPassword) {
-            notification.error({
-                message: "Mật khẩu không khớp",
-                description: "Mật khẩu và xác nhận mật khẩu không giống nhau. Vui lòng kiểm tra lại."
-            })
+            message.error("Mật khẩu và xác nhận mật khẩu không giống nhau. Vui lòng kiểm tra lại.");
             return;
         }
         setLoadingStep1(true);
-        const backendUrl = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080').replace(/\/$/, '');
         const res = await sendRequest<IBackendRes<any>>({
-            url: `${backendUrl}/api/v1/auth/change-password`,
+            url: `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/auth/change-password`,
             method: "POST",
             body: {
                 code, password, confirmPassword, email: userEmail
@@ -70,10 +62,7 @@ const ModalChangePassword = (props: any) => {
         if (res?.data) {
             setCurrent(2);
         } else {
-            notification.error({
-                message: "Lỗi đổi mật khẩu",
-                description: res?.message || "Không thể đổi mật khẩu. Vui lòng thử lại sau."
-            })
+            message.error(res?.message || "Không thể đổi mật khẩu. Vui lòng thử lại sau.")
         }
     }
 
