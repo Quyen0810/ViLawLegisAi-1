@@ -1,7 +1,8 @@
 'use client'
 
+import React from 'react'
 import { IUser } from '@/types/next-auth'
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -116,19 +117,582 @@ const getUserLevel = (email?: string): 'normal' | 'pro' | 'admin' => {
   return 'normal'
 }
 
+// Sanitize content - đặt ngoài component để tránh tạo lại
+const sanitizeContent = (raw?: string): string => {
+  if (typeof raw !== "string") return raw ?? "";
+  let t = raw.replace(/\\r\\n/g, "\\n").replace(/\\r/g, "\\n");
+  t = t.replace(/\\n/g, "\n").replace(/\\r/g, "\r");
+  t = t.replace(/<\|[\s\S]*?\|>/g, "");
+  t = t.replace(/\[[\s\S]*?HASH:[\s\S]*?\]/g, "");
+  t = t.replace(/,\s*\./g, ".");
+  t = t.replace(/\n{3,}/g, "\n\n");
+  t = t.replace(/[ \t]{2,}/g, " ");
+  return t.trim();
+};
+
+// Format content để hiển thị đẹp hơn - CẢI TIẾN với markdown-like rendering
+const formatContent = (content: string, isUser: boolean = false): React.ReactNode => {
+  if (!content) return null;
+
+  // CRITICAL: Pre-process content to ensure proper line breaks
+  let processedContent = content;
+
+  // Handle escaped newlines from API
+  processedContent = processedContent.replace(/\\n/g, '\n');
+  processedContent = processedContent.replace(/\\r\\n/g, '\n');
+  processedContent = processedContent.replace(/\\r/g, '\n');
+
+  // INSERT LINE BREAKS before common patterns that should start on new lines
+  // Pattern: numbered items like "1. ", "2. " etc anywhere in text
+  processedContent = processedContent.replace(/(\d+\.\s+(?:[A-ZÀ-Ỹa-zà-ỹ]))/g, '\n\n$1');
+
+  // Pattern: asterisk bullets "* Something" - convert to dash and add newline
+  processedContent = processedContent.replace(/\*\s+([A-ZÀ-Ỹa-zà-ỹ])/g, '\n- $1');
+
+  // Pattern: **Header:** or **Header** style sections - add newlines before
+  processedContent = processedContent.replace(/\*\*([^*]+)\*\*/g, '\n\n**$1**\n');
+
+  // Pattern: emoji headers - add newlines before
+  processedContent = processedContent.replace(/(📞|👨‍⚖️|💡|☎️|📍|⚠️|⏰|✅|❌|🔍|📄|⚖️|🏛️)/g, '\n\n$1');
+
+  // Pattern: triple dash divider
+  processedContent = processedContent.replace(/---/g, '\n---\n');
+
+  // Clean up multiple newlines
+  processedContent = processedContent.replace(/\n{3,}/g, '\n\n');
+  processedContent = processedContent.trim();
+
+
+  // Split content into lines for processing
+  const lines = processedContent.split('\n');
+  const elements: React.ReactNode[] = [];
+  let currentParagraph: string[] = [];
+  let listItems: string[] = [];
+  let isInList = false;
+  let sectionCount = 0;
+
+  const flushParagraph = () => {
+    if (currentParagraph.length > 0) {
+      const text = currentParagraph.join(' ').trim();
+      if (text) {
+        elements.push(
+          <p key={`p-${elements.length}`} style={{
+            marginBottom: '14px',
+            lineHeight: '1.85',
+            color: isUser ? 'inherit' : '#111827'
+          }}>
+            {formatInlineText(text, isUser)}
+          </p>
+        );
+      }
+      currentParagraph = [];
+    }
+  };
+
+  const flushList = () => {
+    if (listItems.length > 0) {
+      elements.push(
+        <ul key={`ul-${elements.length}`} style={{
+          marginBottom: '14px',
+          paddingLeft: '24px',
+          listStyleType: 'disc'
+        }}>
+          {listItems.map((item, idx) => (
+            <li key={idx} style={{
+              marginBottom: '8px',
+              lineHeight: '1.75',
+              color: isUser ? 'inherit' : '#111827'
+            }}>
+              {formatInlineText(item, isUser)}
+            </li>
+          ))}
+        </ul>
+      );
+      listItems = [];
+      isInList = false;
+    }
+  };
+
+  // Format inline text (bold, links, etc.)
+  const formatInlineText = (text: string, isUser: boolean = false): React.ReactNode => {
+    // Pre-clean: fix malformed patterns like **text:* or **text*
+    let cleanText = text
+      .replace(/\*\*([^*:]+):\*/g, '**$1:**')  // **text:* -> **text:**
+      .replace(/\*\*([^*]+)\*(?!\*)/g, '**$1**')  // **text* -> **text**  
+      .replace(/(?<!\*)\*(?!\*)/g, '');  // remove orphan single *
+
+    const parts: React.ReactNode[] = [];
+    let key = 0;
+
+
+    // Pattern for **bold** text
+    const boldPattern = /\*\*([^*]+)\*\*/g;
+
+    let lastIndex = 0;
+    let match;
+
+    while ((match = boldPattern.exec(cleanText)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(<span key={key++}>{cleanText.slice(lastIndex, match.index)}</span>);
+      }
+      parts.push(
+        <strong key={key++} style={{
+          fontWeight: 600,
+          color: isUser ? 'inherit' : '#1e40af'
+        }}>
+          {match[1]}
+        </strong>
+      );
+      lastIndex = match.index + match[0].length;
+    }
+
+    if (lastIndex < cleanText.length) {
+      parts.push(<span key={key++}>{cleanText.slice(lastIndex)}</span>);
+    }
+
+    return parts.length > 0 ? parts : cleanText;
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+
+    // Empty line - flush current paragraph
+    if (!line) {
+      flushList();
+      flushParagraph();
+      continue;
+    }
+
+    // Main section headers (1. 2. 3. Title)
+    if (/^\d+\.\s+[A-ZÀ-Ỹ]/.test(line)) {
+      flushList();
+      flushParagraph();
+      sectionCount++;
+      elements.push(
+        <div key={`section-${elements.length}`} style={{
+          backgroundColor: '#eff6ff',
+          borderLeft: '4px solid #3b82f6',
+          padding: '12px 16px',
+          marginTop: sectionCount > 1 ? '20px' : '8px',
+          marginBottom: '12px',
+          borderRadius: '0 8px 8px 0'
+        }}>
+          <h3 style={{
+            fontSize: '16px',
+            fontWeight: 700,
+            color: '#1e40af',
+            margin: 0
+          }}>
+            {formatInlineText(line, isUser)}
+          </h3>
+        </div>
+      );
+      continue;
+    }
+
+    // Divider line (---)
+    if (/^-{3,}$/.test(line)) {
+      flushList();
+      flushParagraph();
+      elements.push(
+        <hr key={`hr-${elements.length}`} style={{
+          margin: '20px 0',
+          border: 'none',
+          borderTop: '2px solid #e5e7eb'
+        }} />
+      );
+      continue;
+    }
+
+    // Emoji headers (📞, 👨‍⚖️, 💡, etc.)
+    if (/^[📞👨💡☎️📍⚠️⏰✅❌🔍📄⚖️🏛️]/.test(line)) {
+      flushList();
+      flushParagraph();
+      elements.push(
+        <div key={`emoji-${elements.length}`} style={{
+          fontSize: '15px',
+          fontWeight: 600,
+          marginTop: '16px',
+          marginBottom: '8px',
+          color: isUser ? 'inherit' : '#111827',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
+        }}>
+          {formatInlineText(line, isUser)}
+        </div>
+      );
+      continue;
+    }
+
+    // Bullet points (-, *, •)
+    if (/^[\-\*\•]\s/.test(line)) {
+      flushParagraph();
+      isInList = true;
+      listItems.push(line.replace(/^[\-\*\•]\s*/, ''));
+      continue;
+    }
+
+    // If we were in a list and this line doesn't start with bullet, flush list
+    if (isInList && !/^[\-\*\•]\s/.test(line)) {
+      flushList();
+    }
+
+    // Regular text - add to current paragraph
+    currentParagraph.push(line);
+  }
+
+  // Flush remaining content
+  flushList();
+  flushParagraph();
+
+  return <>{elements}</>;
+};
+
+
+// ============================================
+type LawyerType = 'criminal' | 'business' | 'civil_dongnai' | 'civil' | 'general' | '';
+
+const detectLawyerNeed = (userQuestion: string): { needsLawyer: boolean; lawyerType: LawyerType } => {
+  const q = userQuestion.toLowerCase();
+
+  // Keywords cho từng loại luật sư (MỞ RỘNG)
+  const criminalKeywords = [
+    'hình sự', 'bị tố cáo', 'bị bắt', 'điều tra', 'truy tố', 'án tù', 'tội danh',
+    'công an', 'viện kiểm sát', 'bào chữa', 'kháng cáo', 'tù giam', 'phạm tội',
+    'bị cáo', 'nguyên đơn', 'bị đơn', 'tạm giam', 'tạm giữ', 'khởi tố',
+    'phạt tù', 'án treo', 'tội phạm', 'bị hại', 'vi phạm pháp luật', 'buông tha',
+    'giết người', 'trộm cắp', 'cướp', 'lừa đảo', 'tham nhũng', 'gây thương tích'
+  ];
+
+  const civilKeywords = [
+    'kiện', 'tranh chấp', 'sa thải', 'thừa kế', 'ly hôn', 'chia tài sản',
+    'mua bán nhà', 'hợp đồng', 'bồi thường', 'tòa án', 'đơn kiện', 'đại diện',
+    'quyền nuôi con', 'cấp dưỡng', 'di chúc', 'tài sản chung', 'nợ', 'trả nợ',
+    'đòi nợ', 'vay mượn', 'thế chấp', 'đất đai', 'nhà đất', 'sang tên',
+    'chuyển nhượng', 'giấy tờ nhà', 'sổ đỏ', 'sổ hồng', 'quyền sử dụng đất',
+    'tranh chấp đất', 'lấn chiếm', 'xây dựng trái phép', 'vi phạm hợp đồng',
+    'bị lừa', 'bị lừa đảo', 'mất tiền', 'đòi lại tiền', 'không trả', 'chiếm đoạt',
+    'vỡ nợ', 'xù nợ', 'nợ xấu', 'vay tín dụng đen'
+  ];
+
+  const businessKeywords = [
+    'thành lập công ty', 'doanh nghiệp', 'hợp đồng thương mại', 'm&a',
+    'sáp nhập', 'mua lại', 'giấy phép kinh doanh', 'đầu tư', 'thuế doanh nghiệp',
+    'cổ phần', 'cổ đông', 'hội đồng quản trị', 'giải thể', 'phá sản',
+    'giấy phép', 'đăng ký kinh doanh', 'vốn điều lệ', 'tranh chấp thương mại',
+    'hợp đồng lao động', 'thanh lý', 'kinh doanh', 'xuất nhập khẩu', 'mở công ty'
+  ];
+
+  const directKeywords = [
+    'tìm luật sư', 'cần luật sư', 'liên hệ luật sư', 'giới thiệu luật sư',
+    'có luật sư nào', 'thuê luật sư', 'tư vấn luật sư', 'số điện thoại luật sư',
+    'liên hệ tư vấn', 'gặp luật sư', 'hẹn luật sư', 'văn phòng luật sư'
+  ];
+
+  const seriousLaborKeywords = [
+    'sa thải oan', 'không trả lương', 'bị đuổi việc', 'nợ lương',
+    'sa thải trái phép', 'chấm dứt hợp đồng trái phép', 'bị cắt lương',
+    'bóc lột', 'bị ép nghỉ việc', 'không được đóng bảo hiểm', 'quỵt lương',
+    'chèn ép', 'bị đối xử bất công', 'vi phạm quyền lao động'
+  ];
+
+  // Câu hỏi phức tạp cần tư vấn chuyên sâu
+  const complexQuestionKeywords = [
+    'phải làm gì', 'nên làm gì', 'xử lý thế nào', 'giải quyết như thế nào',
+    'quyền gì', 'quyền lợi', 'có quyền', 'được quyền', 'bị xâm phạm',
+    'bị thiệt hại', 'khiếu nại', 'tố cáo', 'báo công an', 'ra tòa',
+    'kiện được không', 'có vi phạm', 'trái pháp luật', 'đúng hay sai',
+    'có hợp pháp', 'được phép không', 'bị phạt', 'bị xử lý', 'bị truy cứu',
+    'mất tiền', 'lừa qua mạng', 'ứng dụng lừa đảo'
+  ];
+
+  // Check direct request first
+  if (directKeywords.some(kw => q.includes(kw))) {
+    return { needsLawyer: true, lawyerType: 'general' };
+  }
+
+  // Check criminal
+  if (criminalKeywords.some(kw => q.includes(kw))) {
+    return { needsLawyer: true, lawyerType: 'criminal' };
+  }
+
+  // Check business
+  if (businessKeywords.some(kw => q.includes(kw))) {
+    return { needsLawyer: true, lawyerType: 'business' };
+  }
+
+  // Check civil/labor with Dong Nai
+  if (civilKeywords.some(kw => q.includes(kw))) {
+    if (q.includes('đồng nai') || q.includes('biên hòa')) {
+      return { needsLawyer: true, lawyerType: 'civil_dongnai' };
+    }
+    return { needsLawyer: true, lawyerType: 'civil' };
+  }
+
+  // Check serious labor disputes
+  if (seriousLaborKeywords.some(kw => q.includes(kw))) {
+    return { needsLawyer: true, lawyerType: 'civil' };
+  }
+
+  // Check complex questions that may need professional advice
+  if (complexQuestionKeywords.some(kw => q.includes(kw))) {
+    return { needsLawyer: true, lawyerType: 'general' };
+  }
+
+  return { needsLawyer: false, lawyerType: '' };
+};
+
+const getLawyerInfo = (lawyerType: LawyerType): string => {
+  const lawyerInfoMap: Record<LawyerType, string> = {
+    'criminal': `
+
+---
+📞 **Tư vấn chuyên sâu**
+
+Vụ việc của bạn thuộc lĩnh vực hình sự, rất cần sự hỗ trợ từ luật sư chuyên nghiệp:
+
+👨‍⚖️ **Luật sư Lê Văn Tiến** (Chuyên hình sự, tranh chấp phức tạp)
+☎️ **02513 741 041**
+
+💡 Luật sư sẽ giúp bạn: Bào chữa, đại diện tại cơ quan điều tra, tư vấn quyền lợi và chiến lược pháp lý tốt nhất.`,
+
+    'business': `
+
+---
+📞 **Tư vấn chuyên sâu**
+
+Vấn đề doanh nghiệp cần được xử lý chuyên nghiệp và chính xác:
+
+👨‍⚖️ **Luật sư Tiến Đỗ (Pascal)** (Tư vấn doanh nghiệp, hợp đồng thương mại)
+☎️ **090 391 8681**
+
+💡 Luật sư sẽ giúp bạn: Thành lập công ty, soạn thảo hợp đồng, tư vấn pháp lý doanh nghiệp, M&A.`,
+
+    'civil_dongnai': `
+
+---
+📞 **Tư vấn chuyên sâu**
+
+Với vấn đề tại Đồng Nai, tôi giới thiệu luật sư địa phương:
+
+👨‍⚖️ **Luật sư Hoàng Anh** (Đồng Nai - Chuyên tranh chấp dân sự, hợp đồng)
+☎️ **094 5909 068**
+📍 Khu vực: Đồng Nai và các tỉnh lân cận
+
+💡 Luật sư sẽ giúp bạn: Đại diện kiện tụng, soạn thảo hợp đồng, giải quyết tranh chấp dân sự.`,
+
+    'civil': `
+
+---
+📞 **Tư vấn chuyên sâu**
+
+Vụ việc của bạn có thể cần sự hỗ trợ trực tiếp từ luật sư. Tôi đề xuất:
+
+👨‍⚖️ **Luật sư Hoàng Anh** (Chuyên tranh chấp dân sự, hợp đồng)
+☎️ **094 5909 068** (Đồng Nai)
+
+👨‍⚖️ **Luật sư Lê Văn Tiến** (Chuyên hình sự, tranh chấp phức tạp)
+☎️ **02513 741 041**
+
+💡 Luật sư sẽ giúp bạn: Tư vấn pháp lý chi tiết, đại diện tại tòa, bảo vệ quyền lợi hợp pháp.`,
+
+    'general': `
+
+---
+📞 **Tư vấn chuyên sâu**
+
+Vụ việc của bạn có thể cần sự hỗ trợ trực tiếp từ luật sư. Tôi đề xuất:
+
+👨‍⚖️ **Luật sư Hoàng Anh** (Chuyên tranh chấp dân sự, hợp đồng)
+☎️ **094 5909 068** (Đồng Nai)
+
+👨‍⚖️ **Luật sư Lê Văn Tiến** (Chuyên hình sự, tranh chấp phức tạp)
+☎️ **02513 741 041**
+
+👨‍⚖️ **Luật sư Tiến Đỗ (Pascal)** (Tư vấn doanh nghiệp)
+☎️ **090 391 8681**
+
+💡 Luật sư sẽ giúp bạn: Tư vấn pháp lý chi tiết, đại diện tại tòa, bảo vệ quyền lợi hợp pháp.`,
+
+    '': ''
+  };
+
+  return lawyerInfoMap[lawyerType] || '';
+};
+
+// ============================================
+// OPTIMIZED: Tách MessageItem thành component riêng với memo
+// ============================================
+interface MessageItemProps {
+  message: Message;
+  isTyping: boolean;
+  isLatest: boolean;
+  onCopy: (content: string) => void;
+  onShare: (content: string) => void;
+}
+
+const MessageItem = memo(function MessageItem({
+  message,
+  isTyping,
+  isLatest,
+  onCopy,
+  onShare
+}: MessageItemProps) {
+  // Memoize sanitized and formatted content
+  const displayContent = useMemo(() => {
+    if (!message.content) return null;
+    const sanitized = typeof message.content === "string"
+      ? sanitizeContent(message.content)
+      : message.content;
+    return formatContent(sanitized, message.type === 'user');
+  }, [message.content, message.type]);
+
+  // Get raw text for copy/share
+  const rawText = useMemo(() => {
+    if (!message.content) return '';
+    return typeof message.content === "string"
+      ? sanitizeContent(message.content)
+      : message.content;
+  }, [message.content]);
+
+  const MotionWrapper = isLatest ? motion.div : 'div';
+  const motionProps = isLatest ? {
+    initial: { opacity: 0, y: 20 },
+    animate: { opacity: 1, y: 0 },
+    transition: { duration: 0.2 }
+  } : {};
+
+  return (
+    <MotionWrapper
+      {...motionProps}
+      className={`mb-6 ${message.type === 'user' ? 'text-right' : 'text-left'}`}
+      suppressHydrationWarning
+    >
+      <div className={`inline-flex items-start space-x-3 max-w-[85%] ${message.type === 'user' ? 'ml-auto' : ''}`} suppressHydrationWarning>
+        {message.type === 'ai' && (
+          <div className="w-8 h-8 bg-gradient-to-br from-primary-600 to-primary-700 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm">
+            <Bot className="w-4 h-4 text-white" />
+          </div>
+        )}
+
+        <div className={`rounded-2xl px-5 py-4 ${message.type === 'user'
+          ? 'bg-gradient-to-br from-primary-600 to-primary-700 text-white shadow-md'
+          : 'bg-gray-50 text-gray-900 border border-gray-100 shadow-sm'
+          }`}>
+          <div
+            className="chat-content"
+            style={{
+              fontSize: '15px',
+              wordBreak: 'break-word',
+              maxWidth: '100%'
+            }}
+            suppressHydrationWarning
+          >
+            {displayContent ? (
+              displayContent
+            ) : message.type === "ai" && isTyping ? (
+              <span className="text-gray-400 italic">
+                Đang soạn thảo...
+              </span>
+            ) : (
+              ""
+            )}
+          </div>
+          <div className={`text-xs mt-2 ${message.type === 'user' ? 'text-primary-100' : 'text-gray-500'
+            }`} suppressHydrationWarning>
+            {message.timestamp.toLocaleTimeString('vi-VN', {
+              hour: '2-digit',
+              minute: '2-digit'
+            })}
+          </div>
+        </div>
+
+        {message.type === 'user' && (
+          <div className="w-8 h-8 bg-gray-600 rounded-full flex items-center justify-center flex-shrink-0">
+            <User className="w-4 h-4 text-white" />
+          </div>
+        )}
+      </div>
+
+      {message.type === 'ai' && (
+        <div className="flex items-center space-x-2 mt-2 ml-11">
+          <button
+            onClick={() => onCopy(rawText)}
+            className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded transition-colors"
+            title="Sao chép"
+          >
+            <Copy className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => onShare(rawText)}
+            className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded transition-colors"
+            title="Chia sẻ"
+          >
+            <Share2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+    </MotionWrapper>
+  );
+});
+
+// ============================================
+// OPTIMIZED: Tách TypingIndicator
+// ============================================
+const TypingIndicator = memo(function TypingIndicator() {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="flex items-start space-x-3 mb-6"
+    >
+      <div className="w-8 h-8 bg-primary-600 rounded-full flex items-center justify-center">
+        <Bot className="w-4 h-4 text-white" />
+      </div>
+      <div className="bg-gray-100 rounded-2xl px-4 py-3">
+        <div className="flex space-x-1">
+          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce animation-delay-100"></div>
+          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce animation-delay-200"></div>
+        </div>
+      </div>
+    </motion.div>
+  );
+});
+
+// ============================================
+// OPTIMIZED: Throttle helper cho streaming updates
+// ============================================
+function createThrottledUpdater(updateFn: (content: string) => void, delay: number = 150) {
+  let lastUpdate = 0;
+  let pendingContent = "";
+  let timeoutId: NodeJS.Timeout | null = null;
+
+  return (content: string) => {
+    pendingContent = content;
+    const now = Date.now();
+
+    if (now - lastUpdate >= delay) {
+      lastUpdate = now;
+      updateFn(pendingContent);
+    } else if (!timeoutId) {
+      timeoutId = setTimeout(() => {
+        lastUpdate = Date.now();
+        updateFn(pendingContent);
+        timeoutId = null;
+      }, delay - (now - lastUpdate));
+    }
+  };
+}
+
 export default function ChatPage() {
   const router = useRouter()
   const { data: session, status } = useSession()
   const user = session?.user as IUser | undefined
-  const userId = user?._id 
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      type: 'ai',
-      content: 'Xin chào! Tôi là trợ lý pháp lý AI của ViLaw. Tôi có thể giúp bạn tìm hiểu về pháp luật Việt Nam, soạn thảo văn bản pháp lý, và trả lời các câu hỏi liên quan đến quyền lợi của bạn. Bạn có thể hỏi tôi bất cứ điều gì!',
-      timestamp: new Date()
-    }
-  ])
+  const userId = user?._id
+  const [messages, setMessages] = useState<Message[]>([])
+  const [isInitialized, setIsInitialized] = useState(false)
   const [inputValue, setInputValue] = useState('')
   const [isTyping, setIsTyping] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
@@ -140,8 +704,6 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // Yêu cầu đăng nhập theo NextAuth mới để sử dụng Chat
-
   // Redirect sang trang đăng nhập mới nếu chưa đăng nhập
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -149,16 +711,29 @@ export default function ChatPage() {
     }
   }, [status, router])
 
+  // Initialize welcome message on client side only
+  useEffect(() => {
+    if (!isInitialized) {
+      setMessages([{
+        id: '1',
+        type: 'ai',
+        content: 'Xin chào! Tôi là trợ lý pháp lý AI của ViLaw. Tôi có thể giúp bạn tìm hiểu về pháp luật Việt Nam, soạn thảo văn bản pháp lý, và trả lời các câu hỏi liên quan đến quyền lợi của bạn. Bạn có thể hỏi tôi bất cứ điều gì!',
+        timestamp: new Date()
+      }])
+      setIsInitialized(true)
+    }
+  }, [isInitialized])
+
   // Lấy user level khi user đăng nhập
   useEffect(() => {
     if (user?.email) {
       const level = getUserLevel(user.email)
       setUserLevel(level)
     }
-  }, [user])
+  }, [user?.email])
 
-  // Kiểm tra giới hạn
-  const checkLimitReached = (count: number, level: 'normal' | 'pro' | 'admin') => {
+  // Kiểm tra giới hạn - memoized
+  const checkLimitReached = useCallback((count: number, level: 'normal' | 'pro' | 'admin') => {
     const limit = QUERY_LIMITS[level]
     if (limit !== Infinity && count >= limit) {
       setIsLimitReached(true)
@@ -166,13 +741,12 @@ export default function ChatPage() {
     }
     setIsLimitReached(false)
     return false
-  }
+  }, [])
 
-  // Lưu lịch sử chat vào localStorage
-  const saveChatHistory = (userId: string, chatMessages: Message[]) => {
+  // Lưu lịch sử chat vào localStorage - memoized
+  const saveChatHistory = useCallback((uId: string, chatMessages: Message[]) => {
     try {
-      const historyKey = getChatHistoryKey(userId)
-      // Chuyển đổi Date thành string để lưu
+      const historyKey = getChatHistoryKey(uId)
       const serializableMessages = chatMessages.map(msg => ({
         ...msg,
         timestamp: msg.timestamp.toISOString()
@@ -181,316 +755,85 @@ export default function ChatPage() {
     } catch (error) {
       console.error('Error saving chat history:', error)
     }
-  }
+  }, [])
 
-  // Lưu số lượng câu hỏi
-  const saveQueryCount = (userId: string, count: number) => {
+  // Lưu số lượng câu hỏi - memoized
+  const saveQueryCount = useCallback((uId: string, count: number) => {
     try {
-      const countKey = getQueryCountKey(userId)
+      const countKey = getQueryCountKey(uId)
       localStorage.setItem(countKey, count.toString())
     } catch (error) {
       console.error('Error saving query count:', error)
     }
-  }
+  }, [])
 
+  const isHistoryLoaded = useRef(false)
 
   // Tải lịch sử chat và số lượng câu hỏi khi user đăng nhập
   useEffect(() => {
-    if (user && status === 'authenticated' && userId) {
+    if (user && status === 'authenticated' && userId && !isHistoryLoaded.current) {
       const historyKey = getChatHistoryKey(userId)
-     
 
-      // Tải lịch sử chat
       try {
         const savedHistory = localStorage.getItem(historyKey)
         if (savedHistory) {
           const parsedHistory = JSON.parse(savedHistory)
-          // Chuyển đổi timestamp từ string sang Date
           const restoredMessages = parsedHistory.map((msg: any) => ({
             ...msg,
             timestamp: new Date(msg.timestamp)
           }))
-          // Chỉ set messages nếu có lịch sử hợp lệ và không rỗng
           if (restoredMessages.length > 0) {
             setMessages(restoredMessages)
+            isHistoryLoaded.current = true
             toast.success('Đã tải lịch sử chat')
           }
         }
       } catch (error) {
         console.error('Error loading chat history:', error)
       }
-
     }
   }, [user, status, userId])
 
-  const scrollToBottom = () => {
+  // Scroll to bottom - memoized
+  const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }
-
-  const sanitizeContent = (raw?: string) => {
-    if (typeof raw !== "string") return raw;
-    let t = raw.replace(/\\r\\n/g, "\\n").replace(/\\r/g, "\\n");
-    // Convert literal escaped sequences to real characters
-    t = t.replace(/\\n/g, "\n").replace(/\\r/g, "\r");
-    // Remove token markers like <|file_separator|>, <|im_end|>, etc.
-    t = t.replace(/<\|[\s\S]*?\|>/g, "");
-    // Remove any bracketed HASH... TIMESTAMP footer (non-greedy)
-    t = t.replace(/\[[\s\S]*?HASH:[\s\S]*?\]/g, "");
-    // Remove asterisks used as markdown list markers but keep emphasis if desired
-    t = t.replace(/\*+/g, "");
-    // Fix stray punctuation sequences like ", ." -> "."
-    t = t.replace(/,\s*\./g, ".");
-    // Collapse multiple blank lines
-    t = t.replace(/\n{3,}/g, "\n\n");
-    // Collapse multiple spaces/tabs
-    t = t.replace(/[ \t]{2,}/g, " ");
-    return t.trim();
-  };
+  }, [])
 
   useEffect(() => {
     scrollToBottom()
-  }, [messages])
+  }, [messages, scrollToBottom])
 
-   const handleSendMessage = async (content: string) => {
-    if (!content.trim()) return;
-
-    // Kiểm tra đăng nhập
-    if (!user) {
-      toast.error("Vui lòng đăng nhập để sử dụng Chat AI");
-      router.push(`/supabase-login?redirect=${encodeURIComponent("/chat")}`);
-      return;
-    }
-
-    // Kiểm tra giới hạn số câu hỏi
-    // const limit = QUERY_LIMITS[userLevel]
-    // if (limit !== Infinity && queryCount >= limit) {
-    //   toast.error(`Bạn đã đạt giới hạn ${limit} câu hỏi cho gói ${userLevel}. Vui lòng nâng cấp để tiếp tục sử dụng.`)
-    //   setIsLimitReached(true)
-    //   return
-    // }
-
-    const getFallbackReply = () =>
-      "Hiện tại không thể gọi AI. " +
-      "Chúng tôi sẽ phản hồi sớm nhất khi hệ thống ổn định.";
-
-    const safeGenerateAIResponse = async (userInput: string) => {
-      try {
-        return await generateAIResponse(userInput);
-      } catch (err: any) {
-        console.error("AI fallback error:", err);
-        toast.error("AI tạm thời không phản hồi, dùng câu trả lời mẫu");
-        return getFallbackReply();
-      }
-    };
-
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      type: "user",
-      content: content.trim(),
-      timestamp: new Date(),
-    };
-
-    const updatedMessages = [...messages, userMessage];
-    setMessages(updatedMessages);
-    setInputValue("");
-    setIsTyping(true);
-
-    // Tăng số lượng câu hỏi và lưu
-    const newQueryCount = queryCount + 1;
-    setQueryCount(newQueryCount);
-    saveQueryCount(userId  || '', newQueryCount);
-    checkLimitReached(newQueryCount, userLevel);
-
-    // Tạo tin nhắn AI trước với nội dung rỗng để cập nhật theo streaming
-    const aiMessageId = (Date.now() + 1).toString();
-    const initialAiResponse: Message = {
-      id: aiMessageId,
-      type: "ai",
-      content: "",
-      timestamp: new Date(),
-    };
-    const messagesWithAi = [...updatedMessages, initialAiResponse];
-    setMessages(messagesWithAi);
-    // Flag để ngăn race condition: nếu streaming callback đến trước khi state được flush,
-    // ta vẫn biết rằng ai message đã được tạo (scheduled) và không thêm bản sao nữa.
-    let aiMessageScheduled = true;
-
-    try {
-      const anyWindow = window as any;
-      let aiText = "";
-
-      // Thử dùng apiService nếu có
-      if (anyWindow?.apiService?.chatWithAI) {
-        try {
-          const aiRes = await anyWindow.apiService.chatWithAI(content, "vi");
-          aiText = aiRes?.response || "";
-        } catch (e) {
-          console.log("apiService failed, using streaming API");
-        }
-      }
-
-      // Nếu không có apiService hoặc không có kết quả, dùng streaming API
-      if (!aiText) {
-        // Sử dụng streaming với callback để cập nhật UI theo thời gian thực
-        const updateMessageContent = (newContent: string) => {
-          setMessages((prevMessages) => {
-            const messageExists = prevMessages.some(
-              (msg) => msg.id === aiMessageId
-            );
-            if (!messageExists) {
-              // Nếu tin nhắn chưa tồn tại và chưa được scheduled (fallback), thêm mới
-              if (!aiMessageScheduled) {
-                aiMessageScheduled = true;
-                return [
-                  ...prevMessages,
-                  {
-                    id: aiMessageId,
-                    type: "ai" as const,
-                    content: newContent,
-                    timestamp: new Date(),
-                  },
-                ];
-              }
-              // Nếu đã scheduled, tránh thêm duplicate; map will add nothing
-              return prevMessages;
-            }
-            // Cập nhật tin nhắn hiện có
-            return prevMessages.map((msg) =>
-              msg.id === aiMessageId ? { ...msg, content: newContent } : msg
-            );
-          });
-        };
-
-        let accumulatedContent = "";
-        aiText = await generateAIResponse(
-          content,
-          (chunk: string) => {
-            // Normalize newline characters
-            const normalizedChunk = chunk
-              .replace(/\r\n/g, "\n")
-              .replace(/\r/g, "\n");
-            console.log(
-              "Received chunk (repr):",
-              JSON.stringify(normalizedChunk)
-            );
-
-            if (!accumulatedContent) {
-              accumulatedContent = normalizedChunk;
-            } else if (normalizedChunk.includes(accumulatedContent)) {
-              // Server sent the whole text again -> replace to avoid duplication
-              accumulatedContent = normalizedChunk;
-            } else {
-              // Ensure there's a newline between previous content and new chunk if needed
-              if (
-                !accumulatedContent.endsWith("\n") &&
-                !normalizedChunk.startsWith("\n")
-              ) {
-                accumulatedContent += "\n" + normalizedChunk;
-              } else {
-                accumulatedContent += normalizedChunk;
-              }
-            }
-
-            console.log(
-              "Accumulated content (repr):",
-              JSON.stringify(accumulatedContent)
-            );
-            updateMessageContent(accumulatedContent);
-          },
-          userId || '', // Sử dụng user.id làm conversation_id
-          {} // extraHeaders nếu cần
-        );
-
-        console.log("Final AI response:", aiText);
-
-        // Prefer the streamed accumulated content (kept during onChunk) because
-        // some backends return a final payload without original newlines.
-        const finalText =
-          accumulatedContent && accumulatedContent.trim()
-            ? accumulatedContent
-            : aiText;
-        if (finalText) {
-          updateMessageContent(finalText);
-        }
-      } else {
-        // Nếu dùng apiService, cập nhật tin nhắn với nội dung đầy đủ
-        setMessages((prevMessages) =>
-          prevMessages.map((msg) =>
-            msg.id === aiMessageId ? { ...msg, content: aiText } : msg
-          )
-        );
-      }
-
-      // Lấy messages hiện tại để lưu
-      setMessages((prevMessages) => {
-        const finalMessages = prevMessages.map((msg) =>
-          msg.id === aiMessageId
-            ? {
-                ...msg,
-                // If aiText lacks newlines, prefer the already-streamed msg.content (preserves formatting)
-                content:
-                  aiText && typeof aiText === "string" && aiText.includes("\n")
-                    ? aiText
-                    : msg.content,
-              }
-            : msg
-        );
-        // Lưu lịch sử chat sau khi có phản hồi AI
-        saveChatHistory(userId || '', finalMessages);
-        return finalMessages;
-      });
-    } catch (e) {
-      console.error("AI error:", e);
-      toast.error("Không thể gọi AI hiện tại, dùng phản hồi mẫu");
-
-      // Fallback: dùng safeGenerateAIResponse (không streaming)
-      try {
-        const fallbackText = await safeGenerateAIResponse(content);
-        setMessages((prevMessages) => {
-          const finalMessages = prevMessages.map((msg) =>
-            msg.id === aiMessageId ? { ...msg, content: fallbackText } : msg
-          );
-          saveChatHistory(userId || '', finalMessages);
-          return finalMessages;
-        });
-      } catch (fallbackError) {
-        // Nếu fallback cũng lỗi, hiển thị thông báo lỗi
-        const errorMessage =
-          "Xin lỗi, không thể kết nối với AI. Vui lòng thử lại sau.";
-        setMessages((prevMessages) => {
-          const finalMessages = prevMessages.map((msg) =>
-            msg.id === aiMessageId ? { ...msg, content: errorMessage } : msg
-          );
-          saveChatHistory(userId || '', finalMessages);
-          return finalMessages;
-        });
-      }
-    } finally {
-      setIsTyping(false);
-    }
-  };
-
-  const generateAIResponse = async (
+  // ============================================
+  // OPTIMIZED: generateAIResponse với throttled updates
+  // ============================================
+  const generateAIResponse = useCallback(async (
     userInput: string,
     onChunk?: (chunk: string) => void,
     conversationId: string = "1",
     extraHeaders: Record<string, string> = {}
   ): Promise<string> => {
-    const url = "https://vilawbot.onrender.com/api/v1/chat/stream";
+
+    // Use environment variable or fallback to Render production URL
+    const API_URL = `${process.env.NEXT_PUBLIC_BACKEND_URL || "https://vilaw-be.onrender.com"}/api/v1/chatmessages`;
     const controller = new AbortController();
 
     let fullResponse = "";
 
     try {
-      const res = await fetch(url, {
+      const res = await fetch(API_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           ...extraHeaders,
         },
         body: JSON.stringify({
-          message: userInput?.trim() || "Nội dung câu hỏi trống",
-          conversation_id: conversationId,
+          sessionId: conversationId || "default-session",
+          messages: [{
+            sender: "user",
+            text: userInput?.trim(),
+            timestamp: new Date(),
+            metadata: {}
+          }]
         }),
         signal: controller.signal,
       });
@@ -499,120 +842,86 @@ export default function ChatPage() {
         throw new Error("Stream request failed: " + res.status);
       }
 
-      const reader = res.body?.getReader();
-      if (!reader) {
-        throw new Error("Response body is not readable");
-      }
+      const contentType = res.headers.get("content-type") || "";
 
-      const decoder = new TextDecoder("utf-8");
-      let buf = "";
+      // Check if response is SSE stream or plain text/json
+      if (contentType.includes("text/event-stream")) {
+        // SSE streaming mode
+        const reader = res.body?.getReader();
+        if (!reader) {
+          throw new Error("Response body is not readable");
+        }
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+        const decoder = new TextDecoder("utf-8");
+        let buf = "";
 
-        const chunk = decoder.decode(value, { stream: true });
-        buf += chunk;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-        // Xử lý giống `iter_lines` trong test script: tách theo dòng, giữ lại phần chưa đầy đủ
-        const lines = buf.split("\n");
-        // Lưu phần cuối cùng (có thể là partial line) để ghép với chunk tiếp theo
-        buf = lines.pop() || "";
+          const chunk = decoder.decode(value, { stream: true });
+          buf += chunk;
 
-        for (const rawLine of lines) {
-          // Preserve original leading spaces to keep markdown/list formatting
-          const raw = rawLine.replace(/\r$/, "");
-          if (!raw.trim()) continue;
-          if (raw.startsWith(":")) continue; // SSE comment
+          const lines = buf.split("\n");
+          buf = lines.pop() || "";
 
-          let payload = "";
-          if (raw.startsWith("data:")) {
-            // Keep payload as-is (don't trim) to preserve indentation/newlines
-            payload = raw.replace(/^data:\s*/, "");
+          for (const rawLine of lines) {
+            const raw = rawLine.replace(/\r$/, "");
+            if (!raw.trim() || raw.startsWith(":")) continue;
+
+            const payload = raw.startsWith("data:") ? raw.slice(5).trim() : raw;
+            if (!payload) continue;
+
+            let textToAdd = payload;
+            if (payload[0] === '{' || payload[0] === '[') {
+              try {
+                const parsed = JSON.parse(payload);
+                textToAdd = parsed.text ?? parsed.message ?? parsed.content ?? parsed.response ?? payload;
+              } catch {
+                // Keep original payload if JSON parse fails
+              }
+            }
+
+            if (textToAdd) {
+              fullResponse += textToAdd;
+              if (onChunk) {
+                onChunk(fullResponse);
+              }
+            }
+          }
+        }
+
+        // Process remaining buffer
+        if (buf.trim() && !buf.startsWith(":")) {
+          const payload = buf.startsWith("data:") ? buf.slice(5).trim() : buf.trim();
+          if (payload) {
+            fullResponse += payload;
+          }
+        }
+      } else {
+        // Plain text or JSON response mode
+        const text = await res.text();
+
+        // Try to parse as JSON first
+        try {
+          const json = JSON.parse(text);
+          // Mentor: Backend trả về document có mảng messages, tin nhắn AI nằm ở cuối
+          if (json.messages && Array.isArray(json.messages) && json.messages.length > 0) {
+            const lastMsg = json.messages[json.messages.length - 1];
+            fullResponse = lastMsg.text || lastMsg.content || text;
           } else {
-            // plain text line (non-SSE)
-            payload = raw;
+            fullResponse = json.aiMessage?.content ?? json.text ?? json.message ?? json.content ?? json.response ?? text;
           }
-
-          if (!payload) continue;
-
-          let textToAdd = payload;
-          try {
-            const parsed = JSON.parse(payload);
-            if (typeof parsed === "object" && parsed !== null) {
-              // ưu tiên trường `text` giống test script
-              textToAdd =
-                parsed.text ??
-                parsed.message ??
-                parsed.content ??
-                parsed.response ??
-                parsed.data ??
-                JSON.stringify(parsed);
-            } else if (typeof parsed === "string") {
-              textToAdd = parsed;
-            }
-          } catch {
-            textToAdd = payload;
-          }
-
-          if (typeof textToAdd === "string") {
-            // Convert escaped sequences ("\\n", "\\r", "\\t") to real characters
-            textToAdd = textToAdd
-              .replace(/\\r/g, "\r")
-              .replace(/\\n/g, "\n")
-              .replace(/\\t/g, "\t");
-          }
-
-          if (textToAdd) {
-            // Maintain newline behavior for SSE `data:` events but preserve original spacing
-            const appended = raw.startsWith("data:")
-              ? textToAdd + "\n"
-              : textToAdd;
-            fullResponse += appended;
-            if (onChunk) onChunk(appended);
-          }
+        } catch {
+          // Use plain text
+          fullResponse = text;
         }
+
+        if (onChunk) onChunk(fullResponse);
       }
 
-      // Xử lý phần còn lại trong buffer (dòng cuối cùng)
-      if (buf.trim()) {
-        const raw = buf.replace(/\r$/, "");
-        if (raw && !raw.startsWith(":")) {
-          const payload = raw.startsWith("data:")
-            ? raw.replace(/^data:\s*/, "")
-            : raw;
-          let textToAdd = payload;
-          try {
-            const parsed = JSON.parse(payload);
-            if (typeof parsed === "object" && parsed !== null) {
-              textToAdd =
-                parsed.text ??
-                parsed.message ??
-                parsed.content ??
-                parsed.response ??
-                parsed.data ??
-                JSON.stringify(parsed);
-            } else if (typeof parsed === "string") {
-              textToAdd = parsed;
-            }
-          } catch {
-            textToAdd = payload;
-          }
-          if (typeof textToAdd === "string") {
-            textToAdd = textToAdd
-              .replace(/\\r/g, "\r")
-              .replace(/\\n/g, "\n")
-              .replace(/\\t/g, "\t");
-          }
-          if (textToAdd) {
-            const appended = raw.startsWith("data:")
-              ? textToAdd + "\n"
-              : textToAdd;
-            fullResponse += appended;
-            if (onChunk) onChunk(appended);
-          }
-        }
-      }
+      // Final update để đảm bảo hiển thị đầy đủ
+      if (onChunk) onChunk(fullResponse);
 
       return fullResponse;
     } catch (err: any) {
@@ -622,30 +931,136 @@ export default function ChatPage() {
       }
       throw new Error(`Stream error: ${err?.message ?? String(err)}`);
     }
-  };
-  
+  }, []);
 
-  const handleSuggestionClick = (suggestion: Suggestion) => {
+
+
+  // ============================================
+  // OPTIMIZED: handleSendMessage với batched updates
+  // ============================================
+  const handleSendMessage = useCallback(async (content: string) => {
+    if (!content.trim()) return;
+
+    if (!user) {
+      toast.error("Vui lòng đăng nhập để sử dụng Chat AI");
+      router.push(`/supabase-login?redirect=${encodeURIComponent("/chat")}`);
+      return;
+    }
+
+    const getFallbackReply = () =>
+      "Hiện tại không thể gọi AI. " +
+      "Chúng tôi sẽ phản hồi sớm nhất khi hệ thống ổn định.";
+
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      type: "user",
+      content: content.trim(),
+      timestamp: new Date(),
+    };
+
+    const aiMessageId = (Date.now() + 1).toString();
+    const initialAiResponse: Message = {
+      id: aiMessageId,
+      type: "ai",
+      content: "",
+      timestamp: new Date(),
+    };
+
+    // Batch initial update
+    setMessages(prev => [...prev, userMessage, initialAiResponse]);
+    setInputValue("");
+    setIsTyping(true);
+
+    // Update query count
+    const newQueryCount = queryCount + 1;
+    setQueryCount(newQueryCount);
+    saveQueryCount(userId || '', newQueryCount);
+    checkLimitReached(newQueryCount, userLevel);
+
+    // Detect if user needs lawyer suggestion (hiển thị SAU khi AI xong)
+    const { needsLawyer, lawyerType } = detectLawyerNeed(content);
+    const lawyerInfo = needsLawyer ? getLawyerInfo(lawyerType) : '';
+
+    try {
+      // OPTIMIZED: Create throttled updater - only update UI every 200ms
+      const throttledUpdate = createThrottledUpdater((newContent: string) => {
+        setMessages(prevMessages =>
+          prevMessages.map(msg =>
+            msg.id === aiMessageId ? { ...msg, content: newContent } : msg
+          )
+        );
+      }, 50);
+
+      const aiText = await generateAIResponse(
+        content,
+        throttledUpdate,
+        userId || '',
+        {}
+      );
+
+      // Final update: AI response + lawyer info at the END
+      const finalContent = aiText
+        ? (lawyerInfo ? `${aiText}\n\n${lawyerInfo}` : aiText)
+        : (lawyerInfo || '');
+
+      setMessages(prevMessages => {
+        const finalMessages = prevMessages.map(msg =>
+          msg.id === aiMessageId
+            ? { ...msg, content: finalContent || msg.content }
+            : msg
+        );
+        saveChatHistory(userId || '', finalMessages);
+        return finalMessages;
+      });
+
+    } catch (e) {
+      console.error("AI error:", e);
+      toast.error("Không thể gọi AI hiện tại, dùng phản hồi mẫu");
+
+      const fallbackText = lawyerInfo
+        ? `${getFallbackReply()}\n\n${lawyerInfo}`
+        : getFallbackReply();
+      setMessages(prevMessages => {
+        const finalMessages = prevMessages.map(msg =>
+          msg.id === aiMessageId ? { ...msg, content: fallbackText } : msg
+        );
+        saveChatHistory(userId || '', finalMessages);
+        return finalMessages;
+      });
+    } finally {
+      setIsTyping(false);
+    }
+  }, [user, userId, queryCount, userLevel, router, generateAIResponse, saveChatHistory, saveQueryCount, checkLimitReached]);
+
+  // Memoized suggestion click handler
+  const handleSuggestionClick = useCallback((suggestion: Suggestion) => {
     handleSendMessage(suggestion.text)
-  }
+  }, [handleSendMessage])
 
-  const filteredSuggestions = selectedCategory === 'all'
-    ? suggestions
-    : suggestions.filter(s => s.category === selectedCategory)
+  // Memoized filtered suggestions
+  const filteredSuggestions = useMemo(() =>
+    selectedCategory === 'all'
+      ? suggestions
+      : suggestions.filter(s => s.category === selectedCategory),
+    [selectedCategory]
+  )
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  // Memoized key press handler
+  const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSendMessage(inputValue)
     }
-  }
+  }, [handleSendMessage, inputValue])
 
-  const handleCopyMessage = (content: string) => {
+  // Memoized copy handler
+  const handleCopyMessage = useCallback((content: string) => {
     navigator.clipboard.writeText(content)
     toast.success('Đã sao chép tin nhắn')
-  }
+  }, [])
 
-  const handleShareMessage = (content: string) => {
+  // Memoized share handler
+  const handleShareMessage = useCallback((content: string) => {
     if (navigator.share) {
       navigator.share({
         title: 'ViLaw Chat',
@@ -656,7 +1071,11 @@ export default function ChatPage() {
       navigator.clipboard.writeText(content)
       toast.success('Đã sao chép để chia sẻ')
     }
-  }
+  }, [])
+
+  // Toggle handlers - memoized
+  const toggleMute = useCallback(() => setIsMuted(prev => !prev), [])
+  const toggleRecording = useCallback(() => setIsRecording(prev => !prev), [])
 
   // Hiển thị loading khi đang kiểm tra đăng nhập
   if (status === 'loading') {
@@ -679,9 +1098,9 @@ export default function ChatPage() {
   const remainingQueries = limit === Infinity ? '∞' : Math.max(0, limit - queryCount)
 
   return (
-    <div className="min-h-screen theme-bg">
+    <div className="min-h-screen theme-bg" suppressHydrationWarning>
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-4 py-4">
+      <header className="bg-white border-b border-gray-200 px-4 py-4" suppressHydrationWarning>
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <Link href="/" className="text-primary-600 hover:text-primary-700">
@@ -708,7 +1127,7 @@ export default function ChatPage() {
             </div>
 
             <button
-              onClick={() => setIsMuted(!isMuted)}
+              onClick={toggleMute}
               className={`p-2 rounded-lg ${isMuted ? 'bg-red-100 text-red-600' : 'text-gray-600 hover:bg-gray-100'}`}
               title={isMuted ? 'Bật âm thanh' : 'Tắt âm thanh'}
             >
@@ -750,104 +1169,26 @@ export default function ChatPage() {
         </div>
       )}
 
-      <div className="max-w-7xl mx-auto p-6">
+      <div className="max-w-7xl mx-auto p-6" suppressHydrationWarning>
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Chat Interface */}
-          <div className="lg:col-span-3">
+          <div className="lg:col-span-3" suppressHydrationWarning>
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 h-[600px] flex flex-col">
-              {/* Messages */}
-              <div className="flex-1 overflow-y-auto p-6">
-                <AnimatePresence>
-                  {messages.map((message, index) => (
-                    <motion.div
-                      key={message.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.1 }}
-                      className={`mb-6 ${message.type === 'user' ? 'text-right' : 'text-left'}`}
-                    >
-                      <div className={`inline-flex items-start space-x-3 max-w-[80%] ${message.type === 'user' ? 'ml-auto' : ''}`}>
-                        {message.type === 'ai' && (
-                          <div className="w-8 h-8 bg-primary-600 rounded-full flex items-center justify-center flex-shrink-0">
-                            <Bot className="w-4 h-4 text-white" />
-                          </div>
-                        )}
+              {/* Messages - OPTIMIZED with individual MessageItem components */}
+              <div className="flex-1 overflow-y-auto p-6" suppressHydrationWarning>
+                {messages.map((message, index) => (
+                  <MessageItem
+                    key={message.id}
+                    message={message}
+                    isTyping={isTyping}
+                    isLatest={index === messages.length - 1}
+                    onCopy={handleCopyMessage}
+                    onShare={handleShareMessage}
+                  />
+                ))}
 
-                        <div className={`rounded-2xl px-4 py-3 ${message.type === 'user'
-                            ? 'bg-primary-600 text-white'
-                            : 'bg-gray-100 text-gray-900'
-                          }`}>
-                          <div className="whitespace-pre-wrap">
-                            {message.content ? (
-                              typeof message.content === "string" ? (
-                                // Sanitize and display
-                                sanitizeContent(message.content)
-                              ) : (
-                                message.content
-                              )
-                            ) : message.type === "ai" && isTyping ? (
-                              <span className="text-gray-400 italic">
-                                Đang soạn thảo...
-                              </span>
-                            ) : (
-                              ""
-                            )}
-                          </div>
-                          <div className={`text-xs mt-2 ${message.type === 'user' ? 'text-primary-100' : 'text-gray-500'
-                            }`}>
-                            {message.timestamp.toLocaleTimeString('vi-VN', {
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
-                          </div>
-                        </div>
-
-                        {message.type === 'user' && (
-                          <div className="w-8 h-8 bg-gray-600 rounded-full flex items-center justify-center flex-shrink-0">
-                            <User className="w-4 h-4 text-white" />
-                          </div>
-                        )}
-                      </div>
-
-                      {message.type === 'ai' && (
-                        <div className="flex items-center space-x-2 mt-2 ml-11">
-                          <button
-                            onClick={() => handleCopyMessage(message.content)}
-                            className="p-1 text-gray-400 hover:text-gray-600"
-                            title="Sao chép"
-                          >
-                            <Copy className="w-3 h-3" />
-                          </button>
-                          <button
-                            onClick={() => handleShareMessage(message.content)}
-                            className="p-1 text-gray-400 hover:text-gray-600"
-                            title="Chia sẻ"
-                          >
-                            <Share2 className="w-3 h-3" />
-                          </button>
-                        </div>
-                      )}
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
-
-                {isTyping && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="flex items-start space-x-3 mb-6"
-                  >
-                    <div className="w-8 h-8 bg-primary-600 rounded-full flex items-center justify-center">
-                      <Bot className="w-4 h-4 text-white" />
-                    </div>
-                    <div className="bg-gray-100 rounded-2xl px-4 py-3">
-                      <div className="flex space-x-1">
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce animation-delay-100"></div>
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce animation-delay-200"></div>
-                      </div>
-                    </div>
-                  </motion.div>
+                {isTyping && messages[messages.length - 1]?.content === '' && (
+                  <TypingIndicator />
                 )}
 
                 <div ref={messagesEndRef} />
@@ -873,22 +1214,20 @@ export default function ChatPage() {
                       onKeyPress={handleKeyPress}
                       placeholder={isLimitReached ? "Đã đạt giới hạn - Vui lòng nâng cấp" : "Nhập câu hỏi pháp lý của bạn..."}
                       disabled={isLimitReached}
-                      className={`w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent ${
-                        isLimitReached ? 'bg-gray-100 cursor-not-allowed' : ''
-                      }`}
+                      className={`w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent ${isLimitReached ? 'bg-gray-100 cursor-not-allowed' : ''
+                        }`}
                     />
                   </div>
 
                   <button
-                    onClick={() => setIsRecording(!isRecording)}
+                    onClick={toggleRecording}
                     disabled={isLimitReached}
-                    className={`p-3 rounded-lg ${
-                      isLimitReached 
-                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
-                        : isRecording 
-                          ? 'bg-red-500 text-white' 
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
+                    className={`p-3 rounded-lg ${isLimitReached
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : isRecording
+                        ? 'bg-red-500 text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
                     title={isRecording ? 'Dừng ghi âm' : 'Ghi âm'}
                   >
                     {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
@@ -908,7 +1247,7 @@ export default function ChatPage() {
           </div>
 
           {/* Suggestions Sidebar */}
-          <div className="lg:col-span-1">
+          <div className="lg:col-span-1" suppressHydrationWarning>
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Gợi ý câu hỏi</h3>
 
@@ -950,4 +1289,4 @@ export default function ChatPage() {
       </div>
     </div>
   )
-} 
+}

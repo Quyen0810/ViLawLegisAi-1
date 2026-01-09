@@ -5,7 +5,6 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useState } from 'react'
 import { useSession, signOut } from 'next-auth/react'
-import logoImg from '../../1.png'
 import {
   Search,
   MessageSquare,
@@ -31,6 +30,7 @@ import {
   Download as DownloadIcon,
   Share2 as ShareIcon,
 } from 'lucide-react'
+import { UserDropdown } from '@/components/dashboard'
 
 const features = [
   {
@@ -237,6 +237,7 @@ export default function HomePage() {
     user?.email?.charAt(0)?.toUpperCase() ||
     'U'
 
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 relative">
       {/* Supabase User Icon */}
@@ -246,40 +247,25 @@ export default function HomePage() {
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center space-x-4">
               <div className="w-16 h-16 rounded-xl overflow-hidden bg-white shadow-sm">
-                <Image src={logoImg} alt="ViLaw" width={64} height={64} className="object-contain w-full h-full" />
+                <Image src="/1.png" alt="ViLaw" width={64} height={64} priority className="object-contain w-full h-full" />
               </div>
               <div>
                 <h1 className="text-xl font-bold text-slate-900">ViLaw</h1>
                 <p className="text-sm text-slate-600">Nền tảng Pháp lý Số</p>
               </div>
             </div>
-            
+
             <nav className="hidden md:flex items-center space-x-8">
               <Link href="/chat" className="nav-link">Chat AI</Link>
-              <Link href="/contract" className="nav-link">Hợp đồng</Link>
-              <Link href="/documents" className="nav-link">Soạn thảo</Link>
-              <Link href="/legal" className="nav-link">Văn bản</Link>
-              <Link href="/payment" className="nav-link">nâng cấp </Link>
+              <Link href="/contract" className="nav-link">Hợp Đồng</Link>
+              <Link href="/documents" className="nav-link">Soạn Thảo</Link>
+              <Link href="/legal" className="nav-link">Văn Bản</Link>
+              <Link href="/payment" className="nav-link">Nâng Cấp</Link>
             </nav>
 
             <div className="flex items-center space-x-4">
               {isLoggedIn ? (
-                <div className="flex items-center space-x-3">
-                  <div className="hidden sm:flex flex-col items-end">
-                    <span className="text-sm font-semibold text-slate-900">
-                      {user?.name || user?.email || 'Người dùng'}
-                    </span>
-                    <button
-                      onClick={() => signOut({ callbackUrl: '/' })}
-                      className="text-xs text-slate-500 hover:text-slate-700"
-                    >
-                      Đăng xuất
-                    </button>
-                  </div>
-                  <div className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center font-semibold shadow-md">
-                    {userInitial}
-                  </div>
-                </div>
+                <UserDropdown />
               ) : (
                 <div className="flex items-center space-x-3">
                   <Link href="/auth/login" className="text-sm font-medium text-slate-700 hover:text-slate-900">
@@ -330,7 +316,7 @@ export default function HomePage() {
               </div>
 
               <div className="flex flex-col sm:flex-row gap-4">
-                <Link href="https://vi-law.vercel.app/chat" className="btn-primary inline-flex items-center justify-center">
+                <Link href="/chat" className="btn-primary inline-flex items-center justify-center">
                   <Play className="w-5 h-5 mr-2" />
                   Dùng thử trợ lý AI
                 </Link>
@@ -524,7 +510,7 @@ export default function HomePage() {
       {/* Test System Card */}
       <section className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div 
+          <motion.div
             className="card-elevated bg-gradient-to-r from-blue-50 to-slate-50"
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -537,7 +523,7 @@ export default function HomePage() {
               <p className="text-lg text-slate-600 mb-12 max-w-2xl mx-auto">
                 Trải nghiệm các tính năng AI-powered của ViLaw với dữ liệu mẫu
               </p>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 <Link href="/legal" className="card hover:shadow-medium transition-all duration-300 group">
                   <div className="flex items-center space-x-4 mb-4">
@@ -633,11 +619,10 @@ export default function HomePage() {
             {packages.map((pkg, index) => (
               <motion.div
                 key={pkg.name}
-                className={`relative card-elevated ${
-                  pkg.popular 
-                    ? 'border-blue-200 shadow-medium' 
+                className={`relative card-elevated ${pkg.popular
+                    ? 'border-blue-200 shadow-medium'
                     : ''
-                }`}
+                  }`}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: index * 0.1 }}
@@ -649,7 +634,7 @@ export default function HomePage() {
                     </span>
                   </div>
                 )}
-                
+
                 <div className="text-center mb-8">
                   <div className="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-blue-50 text-blue-600 mb-6">
                     {pkg.badge}
@@ -669,24 +654,22 @@ export default function HomePage() {
                 </ul>
 
                 {pkg.price === 'Miễn phí' ? (
-                  <Link 
-                    href="/chat" 
-                    className={`w-full py-3 px-6 rounded-lg font-medium text-center transition-all duration-200 ${
-                      pkg.popular
+                  <Link
+                    href="/chat"
+                    className={`w-full py-3 px-6 rounded-lg font-medium text-center transition-all duration-200 ${pkg.popular
                         ? 'btn-primary'
                         : 'btn-secondary'
-                    }`}
+                      }`}
                   >
                     Bắt đầu sử dụng
                   </Link>
                 ) : (
                   <Link
                     href={`/payment?pkg=${pkg.name}`}
-                    className={`w-full py-3 px-6 rounded-lg font-medium text-center transition-all duration-200 ${
-                      pkg.popular
+                    className={`w-full py-3 px-6 rounded-lg font-medium text-center transition-all duration-200 ${pkg.popular
                         ? 'btn-primary'
                         : 'btn-secondary'
-                    }`}
+                      }`}
                   >
                     Thanh toán bằng ví
                   </Link>

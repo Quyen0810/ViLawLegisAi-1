@@ -1,7 +1,7 @@
 'use client'
 
 import { useHasMounted } from "@/utils/customHook";
-import { Button, Divider, Form, Input, Modal, notification, Result, Steps, Typography } from "antd";
+import { Button, Divider, Form, Input, Modal, message, Result, Steps, Typography } from "antd";
 import { SmileOutlined, SolutionOutlined, UserOutlined, SafetyCertificateOutlined, MailOutlined, KeyOutlined } from '@ant-design/icons';
 import { useEffect, useState } from "react";
 import { sendRequest } from "@/utils/api";
@@ -47,10 +47,7 @@ const ModalReactive = (props: any) => {
             setUserId(res?.data?._id)
             setCurrent(1);
         } else {
-            notification.error({
-                message: "Call APIs error",
-                description: res?.message
-            })
+            message.error(res?.message || 'Gửi email thất bại');
         }
 
     }
@@ -69,10 +66,7 @@ const ModalReactive = (props: any) => {
         if (res?.data) {
             setCurrent(2);
         } else {
-            notification.error({
-                message: "Call APIs error",
-                description: res?.message
-            })
+            message.error(res?.message || 'Mã xác nhận không đúng');
         }
 
     }

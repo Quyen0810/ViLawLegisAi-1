@@ -5,6 +5,7 @@ interface IUser {
     _id: string;
     username: string;
     email: string;
+    role?: string;
     access_token: string;
 }
 declare module "next-auth/jwt" {
